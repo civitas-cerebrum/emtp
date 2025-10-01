@@ -1,0 +1,1 @@
+This is where the content for training is acquired.
