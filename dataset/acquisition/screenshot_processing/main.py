@@ -3,6 +3,8 @@ import sys
 from pathlib import Path
 from multiprocessing import Pool, cpu_count
 from functools import partial
+import pytesseract
+import shutil
 from .ocr_processor import process_file
 from .text_cleaner import init_language_tool, FAST_MODE
 
@@ -83,19 +85,17 @@ def main(input_dir: str, output_dir: str, accurate: bool = False, verbose: bool 
     logger.info(f"\nTotal processing time: {total_time:.2f} seconds for {len(image_files)} file(s)")
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='OCR tool to extract text from images')
-    parser.add_argument('input', help='Input image file or directory containing PNG/TIFF files')
-    parser.add_argument('-o', '--output', help='Output directory for text files (default: same as input)')
-    parser.add_argument('--accurate', action='store_true', help='Use more accurate but slower processing')
-    parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose logging')
-    args = parser.parse_args()
-
-    # Set output directory if not provided
-    output_dir = args.output if args.output else Path(args.input).parent
-
-    main(args.input, output_dir, args.accurate, args.verbose)
-
+# Set Tesseract-OCR path if not in PATH
+if shutil.which("tesseract") is None:
+    TESSERACT_PATH = '/usr/bin/tesseract'
+    if Path(TESSERACT_PATH).exists():
+        pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
+    else:
+        logger.error("Tesseract-OCR is not found. Please install it or specify its path.")
+        logger.error("  On Debian/Ubuntu: sudo apt-get install tesseract-ocr")
+        logger.error("  On macOS: brew install tesseract")
+        logger.error("  On Windows: Install from https://tesseract-ocr.github.io/tessdoc/Downloads.html and add to PATH.")
+        sys.exit(1)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='OCR tool to extract text from images')
@@ -109,7 +109,3 @@ if __name__ == '__main__':
     output_dir = args.output if args.output else Path(args.input).parent
 
     main(args.input, output_dir, args.accurate, args.verbose)
-
-
-if __name__ == '__main__':
-    main()

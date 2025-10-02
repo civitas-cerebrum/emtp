@@ -43,14 +43,6 @@ def run_screenshot_processing(input_dir='dataset/acquisition/temp/screenshots', 
     screenshot_processing_stage(input_dir, output_dir, verbose=verbose) # Positional arguments
     print(f"Screenshot processing completed! Text data saved to {output_dir}")
 
-def run_screenshot_processing(input_dir='dataset/acquisition/temp/screenshots', output_dir='dataset/acquisition/temp/text_data'):
-    """Run screenshot processing stage."""
-    print(f"Starting screenshot processing...")
-    print(f"  Input: {input_dir}")
-    print(f"  Output: {output_dir}")
-    ensure_dir(output_dir)
-    screenshot_processing_stage(input_dir=input_dir, output_dir=output_dir)
-    print(f"Screenshot processing completed! Text data saved to {output_dir}")
 
 def get_user_choice():
     """Get user's choice for which stage to run."""

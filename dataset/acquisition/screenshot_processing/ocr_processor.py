@@ -7,17 +7,28 @@ from .spinner import Spinner
 from .text_cleaner import clean_text
 
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 def process_file(png_file, output_dir=None, use_language_tool=False):
     start_time = time.time()
 
-    print(f"\nProcessing {png_file}... ", end='', flush=True)
-    with Spinner():
-        # Load image and extract text
-        image = Image.open(png_file)
-        text = pytesseract.image_to_string(
-            image,
-            config=r'--oem 3 --psm 3'
-        )
+    logger.info(f"Processing {png_file}...")
+    try:
+        with Spinner():
+            # Load image and extract text
+            image = Image.open(png_file)
+            text = pytesseract.image_to_string(
+                image,
+                config=r'--oem 3 --psm 3'
+            )
+    except pytesseract.TesseractNotFoundError:
+        logger.error("Tesseract-OCR is not installed or not in your PATH. Please install it.")
+        return str(png_file), None, 0.0
+    except Exception as e:
+        logger.error(f"Error processing {png_file}: {e}")
+        return str(png_file), None, 0.0
 
     # Clean text
     text = clean_text(text, use_language_tool)
