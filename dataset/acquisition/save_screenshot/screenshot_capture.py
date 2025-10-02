@@ -42,7 +42,15 @@ class ScreenshotCapture:
         # Removed --disable-images and --disable-javascript for better screenshot quality
         chrome_options.add_argument("--disable-web-security")
         chrome_options.add_argument("--allow-running-insecure-content")
-
+        chrome_options.add_argument("--disable-infobars")
+        chrome_options.add_argument("--disable-cookies")
+        chrome_options.add_argument("--disable-notifications")
+        chrome_options.add_argument("--test-third-party-cookie-phaseout")
+        chrome_options.add_argument("--deny-permission-prompts")
+        chrome_options.add_argument("--host-resolver-rules='MAP *cookielaw.org 0.0.0.0'")
+        chrome_options.add_experimental_option("prefs", {"profile.cookie_controls_mode": 1})
+        chrome_options.add_experimental_option("prefs", {"profile.default_content_setting_values.cookies": 2})
+        
         # Install and use ChromeDriver
         self.driver = webdriver.Chrome(options=chrome_options)
 
@@ -82,6 +90,15 @@ class ScreenshotCapture:
                 "document.documentElement.clientHeight, document.documentElement.scrollHeight, "
                 "document.documentElement.offsetHeight);"
             )
+
+            try:
+                script = 'const elementsToRemove = document.querySelectorAll(\'[id*="cookie"], [class*="fc-consent-root"], [class*="overlay"], [class*="ot-fade-in"],[id*="consent"], [class*="consent"]\'); elementsToRemove.forEach(element => {element.remove();});'
+
+                self.driver.execute_script(script)
+                print("Google cookie popup removed!")
+
+            except Exception as ignored:
+                print("No google cookie popup!")
 
             # Set window size to capture full page
             self.driver.set_window_size(1920, total_height)
