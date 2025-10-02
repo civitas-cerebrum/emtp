@@ -53,10 +53,18 @@ emtp/
    - Run the full pipeline (asks only for questions file and final screenshot output)
    - Exit the session
 
+## Non-Interactive Execution
+
+You can also run the pipeline directly using command-line arguments, which is useful for automation or scripting. Use the `--stage` argument to specify which part of the pipeline to run.
+
+```bash
+python main.py --stage full_pipeline --questions-file dataset/acquisition/retrieve_url/sample.json --text-data-output-dir dataset/acquisition/temp/text_data --accurate --verbose
+```
+
 ## Pipeline Stages
 
 ### 1. URL Retrieval (`dataset/acquisition/retrieve_url/`)
-- Reads questions from `qa_questions.json`
+- Reads questions from `dataset/acquisition/retrieve_url/sample.json` (or specified via `--questions-file`)
 - Searches DuckDuckGo for relevant URLs
 - Saves categorized results to `dataset/acquisition/temp/urls/`
 
@@ -66,9 +74,9 @@ emtp/
 - Saves PNG images to `dataset/acquisition/temp/screenshots/`
 
 ### 3. Screenshot Processing (`dataset/acquisition/screenshot_processing/`)
-- Reads PNG images from `dataset/acquisition/temp/screenshots/`
+- Reads PNG images from `dataset/acquisition/temp/screenshots/` (recursively through subdirectories)
 - Performs OCR to extract text from images
-- Cleans and processes the extracted text
+- Cleans and processes the extracted text. Can use `--accurate` flag for more robust cleaning.
 - Saves text data to `dataset/acquisition/temp/text_data/`
 
 ## Data Flow
@@ -91,22 +99,22 @@ graph TD
 
 ## Individual Stage Execution
 
-You can run individual stages through the interactive menu in `main.py`, or directly from their respective directories:
+You can run individual stages through the interactive menu in `main.py`, or directly from their respective directories, or via the non-interactive `main.py` entry point:
 
 ```bash
-# URL retrieval only
-python dataset/acquisition/retrieve_url/main.py --output-dir custom/output --questions-file custom/questions.json
+# Non-interactive URL retrieval only
+python main.py --stage url_retrieval --questions-file dataset/acquisition/retrieve_url/sample.json --urls-output-dir custom/output
 
-# Screenshot capture only
-python dataset/acquisition/save_screenshot/main.py custom/input custom/output
+# Non-interactive Screenshot capture only
+python main.py --stage screenshot_capture --urls-output-dir custom/input --screenshots-output-dir custom/output
 
-# Screenshot processing only
-python dataset/acquisition/screenshot_processing/main.py custom/input custom/output
+# Non-interactive Screenshot processing only (with accurate mode)
+python main.py --stage screenshot_processing --screenshots-output-dir custom/input --text-data-output-dir custom/output --accurate
 ```
 
 ## Configuration
 
-- Modify `qa_questions.json` to change the source questions
+- Modify `dataset/acquisition/retrieve_url/sample.json` or create a new JSON file to change the source questions.
 - Configure screenshot settings in `save_screenshot/main.py`
 
 ## Dependencies

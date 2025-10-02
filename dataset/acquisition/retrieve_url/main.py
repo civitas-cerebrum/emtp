@@ -55,7 +55,7 @@ def search_and_save_urls(questions_data, base_output_dir="dataset/acquisition/te
     logger.info(f"Finished retrieving URLs. Results saved to {base_output_dir}/")
 
 
-def main(output_dir='dataset/acquisition/temp/urls', questions_file='qa_questions.json', verbose: bool = False):
+def main(output_dir='dataset/acquisition/temp/urls', questions_file='sample.json', verbose: bool = False):
     questions_data = get_questions(filename=questions_file)
     search_and_save_urls(questions_data, output_dir, verbose)
 
@@ -63,8 +63,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Search questions using DuckDuckGo')
     parser.add_argument('--output-dir', default='dataset/acquisition/temp/urls',
                         help='Output directory (default: dataset/acquisition/temp/urls)')
-    parser.add_argument('--questions-file', default='qa_questions.json',
-                        help='Questions file (default: qa_questions.json)')
+    parser.add_argument('--questions-file', default='sample.json',
+                        help='Questions file (default: sample.json)')
     parser.add_argument('--verbose', '-v', action='store_true',
                         help='Enable verbose logging')
 
