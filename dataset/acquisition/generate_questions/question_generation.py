@@ -1,1 +1,1 @@
-#TODO: generate questions via llms
+#TODO: generate questions via ollama
