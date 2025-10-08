@@ -11,3 +11,5 @@ webdriver-manager>=4.0.0
 # Screenshot processing dependencies
 pytesseract>=0.3.10
 language-tool-python>=2.9.4
+
+requests
