@@ -10,6 +10,7 @@ import os
 import sys
 import argparse
 from dataset.acquisition import retrieve_url_stage, save_screenshot_stage, screenshot_processing_stage
+from dataset.enrichment import qa_generation
 
 def ensure_dir(path):
     """Ensure directory exists."""
@@ -46,6 +47,12 @@ def run_screenshot_processing(input_dir='dataset/acquisition/temp/screenshots', 
     screenshot_processing_stage(input_dir, output_dir, verbose=verbose, accurate=accurate) # Positional arguments
     print(f"Screenshot processing completed! Text data saved to {output_dir}")
 
+def run_semi_sythetic_data_generation(input_dir='dataset/acquisition/temp/text_data'):
+    """Run Q&A generation stage."""
+    print(f"Starting semi-sythetic data generation...")
+    ensure_dir(input_dir)
+    qa_generation(input_dir) # Positional arguments
+    print(f"Screenshot processing completed! Text data saved to {output_dir}")
 
 def get_user_choice():
     """Get user's choice for which stage to run."""
@@ -124,6 +131,7 @@ def main():
             run_url_retrieval(args.questions_file, args.urls_output_dir, verbose=verbose_logging)
             run_screenshot_capture(args.urls_output_dir, args.screenshots_output_dir, verbose=verbose_logging)
             run_screenshot_processing(args.screenshots_output_dir, args.text_data_output_dir, verbose=verbose_logging, accurate=args.accurate)
+            run_semi_sythetic_data_generation()
             print("Full pipeline completed!")
             print(f"Intermediate URLs saved to: {args.urls_output_dir}")
             print(f"Intermediate screenshots saved to: {args.screenshots_output_dir}")
