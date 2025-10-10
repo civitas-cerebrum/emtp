@@ -12,14 +12,13 @@ from .text_cleaner import init_language_tool, FAST_MODE
 import logging
 import sys # Import sys for StreamHandler
 
-# Configure logging for the module
+# Use the global logger configuration
 logger = logging.getLogger(__name__)
-if not logger.handlers:
-    handler = logging.StreamHandler(sys.stdout)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-logger.setLevel(logging.INFO)
+
+# Reduce verbosity of third-party libraries
+logging.getLogger('PIL').setLevel(logging.WARNING)
+logging.getLogger('multiprocessing').setLevel(logging.WARNING)
+logging.getLogger('language_tool_python').setLevel(logging.WARNING)
 
 
 def main(input_dir: str, output_dir: str, accurate: bool = False, verbose: bool = False):
@@ -82,7 +81,7 @@ def main(input_dir: str, output_dir: str, accurate: bool = False, verbose: bool 
     successful_results = []
     for file_path, output_file, process_time in results:
         if output_file:
-            logger.info(f"Processed {file_path} -> {output_file} (took {process_time:.2f} seconds)")
+            logger.debug(f"Processed {file_path} -> {output_file} (took {process_time:.2f} seconds)")
             successful_results.append((file_path, output_file, process_time))
         else:
             logger.warning(f"Failed to process {file_path}. No output file generated.")

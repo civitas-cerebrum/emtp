@@ -1,4 +1,7 @@
 from ddgs import DDGS
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def search_question(category, question_data, dorks=None):
@@ -23,7 +26,7 @@ def search_question(category, question_data, dorks=None):
 
     # If URLs are already provided, use them directly
     if provided_urls:
-        print(f"- Using provided URLs for: {question}")
+        logger.debug(f"Using provided URLs for: {question}")
         return {"category": category, "question": question, "dorks": question_dorks, "urls": provided_urls}
 
     # Build the search query
@@ -31,7 +34,7 @@ def search_question(category, question_data, dorks=None):
     if question_dorks:
         search_query = f"{question} {question_dorks}"
 
-    print(f"- Searching for: {search_query}")
+    logger.debug(f"Searching for: {search_query}")
     try:
         with DDGS() as ddgs:
             results = list(ddgs.text(search_query, max_results=5))
@@ -39,5 +42,5 @@ def search_question(category, question_data, dorks=None):
 
         return {"category": category, "question": question, "dorks": question_dorks, "urls": urls}
     except Exception as e:
-        print(f"- An error occurred while searching for '{search_query}': {e}")
+        logger.warning(f"An error occurred while searching for '{search_query}': {e}")
         return {"category": category, "question": question, "dorks": question_dorks, "urls": [], "error": str(e)}

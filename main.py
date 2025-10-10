@@ -10,8 +10,22 @@ import os
 import sys
 import argparse
 import asyncio # Import asyncio for asynchronous operations
+import logging
 from dataset.acquisition import retrieve_url_stage, save_datasource_stage, datasource_processing_stage
 from dataset.enrichment import qa_generation
+
+# Reduce verbosity of third-party libraries globally
+logging.getLogger('pydoll').setLevel(logging.CRITICAL)
+logging.getLogger('PIL').setLevel(logging.WARNING)
+logging.getLogger('multiprocessing').setLevel(logging.WARNING)
+logging.getLogger('language_tool_python').setLevel(logging.WARNING)
+logging.getLogger('asyncio').setLevel(logging.WARNING)
+logging.getLogger('urllib3').setLevel(logging.WARNING)
+logging.getLogger('websockets').setLevel(logging.CRITICAL)
+logging.getLogger('selenium').setLevel(logging.WARNING)
+logging.getLogger('requests').setLevel(logging.WARNING)
+logging.getLogger('pydoll.connection').setLevel(logging.CRITICAL)
+logging.getLogger('pydoll.browser').setLevel(logging.CRITICAL)
 
 def ensure_dir(path):
     """Ensure directory exists."""
@@ -19,43 +33,41 @@ def ensure_dir(path):
 
 def run_url_retrieval(questions_file='sample.json', output_dir='dataset/acquisition/temp/urls', verbose: bool = False, dorks: str = None):
     """Run URL retrieval stage."""
-    print(f"Starting URL retrieval...")
+    print(f"🔍 Starting URL retrieval...")
     print(f"  Input: {questions_file}")
     print(f"  Output: {output_dir}")
-    if dorks:
-        print(f"  Dorks: {dorks}")
     ensure_dir(output_dir)
     # Assuming retrieve_url_stage accepts a verbose argument
     # Extract just the filename if a full path is provided
     filename_only = os.path.basename(questions_file)
     retrieve_url_stage(output_dir=output_dir, questions_file=filename_only, verbose=verbose, dorks=dorks)
-    print(f"URL retrieval completed! Results saved to {output_dir}")
+    print(f"✅ URL retrieval completed! Results saved to {output_dir}")
 
 async def run_datasource_capture(input_dir='dataset/acquisition/temp/urls', output_dir='dataset/acquisition/temp/datasources', verbose: bool = False):
     """Run datasource capture stage."""
-    print(f"Starting datasource capture...")
+    print(f"📸 Starting datasource capture...")
     print(f"  Input: {input_dir}")
     print(f"  Output: {output_dir}")
     ensure_dir(output_dir)
     # save_datasource_stage is now async
     await save_datasource_stage(input_dir=input_dir, output_dir=output_dir, verbose=verbose)
-    print(f"Datasource capture completed! Data sources saved to {output_dir}")
+    print(f"✅ Datasource capture completed! Data sources saved to {output_dir}")
 
 def run_datasource_processing(input_dir='dataset/acquisition/temp/datasources', output_dir='dataset/acquisition/temp/text_data', verbose: bool = False, accurate: bool = False):
     """Run datasource processing stage."""
-    print(f"Starting datasource processing...")
+    print(f"🔄 Starting datasource processing...")
     print(f"  Input: {input_dir}")
     print(f"  Output: {output_dir}")
     ensure_dir(output_dir)
     datasource_processing_stage(input_dir, output_dir, verbose=verbose, accurate=accurate) # Positional arguments
-    print(f"Datasource processing completed! Text data saved to {output_dir}")
+    print(f"✅ Datasource processing completed! Text data saved to {output_dir}")
 
 async def run_semi_sythetic_data_generation(input_dir='dataset/acquisition/temp/text_data'):
     """Run Q&A generation stage."""
-    print(f"Starting semi-sythetic data generation...")
+    print(f"🤖 Starting semi-sythetic data generation...")
     ensure_dir(input_dir)
     await qa_generation(input_dir) # qa_generation is now async
-    print(f"Semi-synthetic data generation completed based on text data from {input_dir}")
+    print(f"✅ Semi-synthetic data generation completed based on text data from {input_dir}")
 
 def get_user_choice():
     """Get user's choice for which stage to run."""
@@ -137,7 +149,7 @@ async def main():
             await run_datasource_capture(args.urls_output_dir, args.datasources_output_dir, verbose=verbose_logging)
             run_datasource_processing(args.datasources_output_dir, args.text_data_output_dir, verbose=verbose_logging, accurate=args.accurate)
             await run_semi_sythetic_data_generation() # Await this call
-            print("Full pipeline completed!")
+            print("🎉 Full pipeline completed!")
             print(f"Intermediate URLs saved to: {args.urls_output_dir}")
             print(f"Intermediate data sources saved to: {args.datasources_output_dir}")
             print(f"Final text data saved to: {args.text_data_output_dir}")
@@ -192,7 +204,7 @@ async def main():
                 # Run datasource processing
                 run_datasource_processing(datasources_temp, final_text_output, verbose=verbose_logging, accurate=True) # Automatically use accurate mode
 
-                print("Full pipeline completed!")
+                print("🎉 Full pipeline completed!")
                 print(f"Intermediate URLs saved to: {urls_temp}")
                 print(f"Intermediate data sources saved to: {datasources_temp}")
                 print(f"Final text data saved to: {final_text_output}")
