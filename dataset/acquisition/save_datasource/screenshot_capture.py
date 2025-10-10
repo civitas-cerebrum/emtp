@@ -2,10 +2,14 @@ import os
 import asyncio # New import for asynchronous operations
 import random # Keep this import for random delays
 import requests
+import logging
 from selenium.common.exceptions import WebDriverException # Keep for now for return type inference and existing error handling patterns.
 from pydoll.browser.chromium import Chrome
 from pydoll.browser.options import ChromiumOptions # New import
 from pydoll.exceptions import PydollException, TimeoutException
+
+# Configure logging for the module
+logger = logging.getLogger(__name__)
 
 
 class ScreenshotCapture:
@@ -83,9 +87,9 @@ class ScreenshotCapture:
             try:
                 script = 'const elementsToRemove = document.querySelectorAll(\'[id*="cookie"], [class*="fc-consent-root"], [class*="overlay"], [class*="ot-fade-in"],[id*="consent"], [class*="consent"]\'); elementsToRemove.forEach(element => {element.remove();});'
                 await tab.execute_script(script) # Use execute_script for script execution
-                print("Attempted to remove cookie popups with script.")
+                logger.debug("Attempted to remove cookie popups with script.")
             except Exception as e:
-                print(f"Error executing cookie removal script: {e}")
+                logger.debug(f"Error executing cookie removal script: {e}")
 
             # pydoll captures full-page screenshot by default. Can specify type and quality.
             screenshot_b64 = await tab.take_screenshot(beyond_viewport=True, as_base64=True)

@@ -22,15 +22,13 @@ from .json_parser import extract_urls_from_json_file
 from .screenshot_capture import ScreenshotCapture
 from .image_processor import process_screenshot_for_png
 
-# Configure logging for the module
+# Use the global logger configuration
 logger = logging.getLogger(__name__)
-if not logger.handlers:
-    # Only add handler if not already configured to prevent duplicate messages
-    handler = logging.StreamHandler(sys.stdout)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-logger.setLevel(logging.INFO)
+
+# Reduce verbosity of third-party libraries
+logging.getLogger('pydoll').setLevel(logging.ERROR)
+logging.getLogger('asyncio').setLevel(logging.WARNING)
+logging.getLogger('urllib3').setLevel(logging.WARNING)
 
 
 def create_output_path(input_file: str, url: str, input_dir: str, output_dir: str) -> str:
@@ -93,28 +91,38 @@ async def worker(q: AsyncQueue, input_dir: str, output_dir: str, headless: bool,
 
                 url, json_file, is_pdf = item
                 action = "download PDF" if is_pdf else "capture screenshot"
-                logger.info(f"Attempting to {action} for: {url}")
+                icon = "📄" if is_pdf else "📸"
+                logger.info(f"{icon} Attempting to {action} for: {url}")
 
                 try:
+                    success = False
                     if is_pdf:
-                        # Download PDF
-                        pdf_bytes = await capturer.download_pdf(url)
-                        output_path = create_output_path(json_file, url, input_dir, output_dir)
-                        # Change extension to .pdf
-                        output_path = output_path.replace('.png', '.pdf')
-                    else:
-                        # Capture screenshot
-                        pdf_bytes = await capturer.capture_full_page_screenshot(url)
-                        output_path = create_output_path(json_file, url, input_dir, output_dir)
+                        # Try to download PDF first
+                        try:
+                            pdf_bytes = await capturer.download_pdf(url)
+                            output_path = create_output_path(json_file, url, input_dir, output_dir)
+                            # Change extension to .pdf
+                            output_path = output_path.replace('.png', '.pdf')
+                            Path(output_path).parent.mkdir(parents=True, exist_ok=True) # Ensure output directory exists
+                            with open(output_path, "wb") as f:
+                                f.write(pdf_bytes)
+                            logger.info(f"✅ Successfully saved PDF: {output_path}")
+                            success = True
+                        except Exception as pdf_error:
+                            logger.warning(f"⚠️ Failed to download PDF for {url}: {pdf_error}. Falling back to screenshot.")
 
-                    Path(output_path).parent.mkdir(parents=True, exist_ok=True) # Ensure output directory exists
-                    with open(output_path, "wb") as f:
-                        f.write(pdf_bytes)
-                    logger.info(f"Successfully saved {'PDF' if is_pdf else 'screenshot'}: {output_path}")
+                    if not success:
+                        # Capture screenshot (either because it's not a PDF or PDF download failed)
+                        screenshot_bytes = await capturer.capture_full_page_screenshot(url)
+                        output_path = create_output_path(json_file, url, input_dir, output_dir)
+                        Path(output_path).parent.mkdir(parents=True, exist_ok=True) # Ensure output directory exists
+                        with open(output_path, "wb") as f:
+                            f.write(screenshot_bytes)
+                        logger.info(f"✅ Successfully saved screenshot: {output_path}")
 
                     total_screenshots.append(1)
                 except Exception as e:
-                    logger.error(f"Failed to {action} for {url}: {e}")
+                    logger.error(f"❌ Failed to capture data for {url}: {e}")
                 finally:
                     q.task_done()
             except asyncio.CancelledError:
@@ -138,17 +146,17 @@ async def main_async(input_dir='dataset/acquisition/temp/urls', output_dir='data
     # Create output directory if it doesn't exist
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    logger.info("Starting webpage screenshotter")
-    logger.info(f"Input directory: {input_dir}")
-    logger.info(f"Output directory: {output_dir}")
-    logger.info(f"Page load timeout: {timeout} seconds")
-    logger.info(f"Headless mode: {headless}")
-    logger.info(f"Number of workers: {workers}")
+    logger.debug("Starting webpage screenshotter")
+    logger.debug(f"Input directory: {input_dir}")
+    logger.debug(f"Output directory: {output_dir}")
+    logger.debug(f"Page load timeout: {timeout} seconds")
+    logger.debug(f"Headless mode: {headless}")
+    logger.debug(f"Number of workers: {workers}")
 
     try:
         # Find all JSON files
         json_files = find_json_files(input_dir)
-        logger.info(f"Found {len(json_files)} JSON files in '{input_dir}'")
+        logger.debug(f"Found {len(json_files)} JSON files in '{input_dir}'")
 
         if not json_files:
             logger.warning("No JSON files found in input directory. Exiting.")
@@ -165,8 +173,8 @@ async def main_async(input_dir='dataset/acquisition/temp/urls', output_dir='data
                     total_urls += 1
             except Exception as e:
                 logger.error(f"Error reading JSON file {json_file}: {e}")
-        
-        logger.info(f"Extracted {total_urls} URLs for screenshot capture.")
+
+        logger.debug(f"Extracted {total_urls} URLs for screenshot capture.")
         if total_urls == 0:
             logger.warning("No URLs found for screenshot capture. Exiting.")
             return

@@ -16,14 +16,8 @@ import sys # Import sys for StreamHandler
 from .data_loader import get_questions
 from .search_engine import search_question
 
-# Configure logging for the module
+# Use the global logger configuration
 logger = logging.getLogger(__name__)
-if not logger.handlers:
-    handler = logging.StreamHandler(sys.stdout)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-logger.setLevel(logging.INFO)
 
 
 def search_and_save_urls(questions_data, base_output_dir="dataset/acquisition/temp/urls", verbose: bool = False, dorks: str = None):
@@ -31,20 +25,17 @@ def search_and_save_urls(questions_data, base_output_dir="dataset/acquisition/te
     os.makedirs(base_output_dir, exist_ok=True)
 
     logger.setLevel(logging.DEBUG if verbose else logging.INFO) # Set level for this call
-    logger.info(f"Starting URL retrieval to: {base_output_dir}")
     if dorks:
         logger.info(f"Using dorks: {dorks}")
 
     for category, questions in questions_data.items():
-        logger.info(f"Processing category: {category}")
+        logger.debug(f"Processing category: {category}")
         category_results = []
         for question_data in questions:
             question_text = question_data.get('question', str(question_data)) if isinstance(question_data, dict) else question_data
-            logger.debug(f"Processing question: {question_text}")
             result = search_question(category, question_data, dorks)
             if result:
                 category_results.append(result)
-                logger.debug(f"Found {len(result.get('urls', []))} URLs for '{question_text}'")
             time.sleep(1)
 
         safe_filename = "".join(c for c in category if c.isalnum() or c in (' ', '-', '_')).rstrip()
@@ -53,9 +44,7 @@ def search_and_save_urls(questions_data, base_output_dir="dataset/acquisition/te
 
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(category_results, f, indent=4)
-        logger.info(f"Saved {len(category_results)} results to {output_file}")
-
-    logger.info(f"Finished retrieving URLs. Results saved to {base_output_dir}/")
+        logger.debug(f"Saved {len(category_results)} results to {output_file}")
 
 
 def main(output_dir='dataset/acquisition/temp/urls', questions_file='sample.json', verbose: bool = False, dorks: str = None):
