@@ -13,47 +13,22 @@ import sys
 import logging
 from pathlib import Path
 from typing import List
-import queue
-import threading
- 
+import asyncio # Import asyncio
+from asyncio import Queue as AsyncQueue # Use asyncio's Queue for async operations
+import threading # Still needed for process management of the overall script
+
 from .file_finder import find_json_files, validate_directory
 from .json_parser import extract_urls_from_json_file
 from .screenshot_capture import ScreenshotCapture
 from .image_processor import process_screenshot_for_png
 
-
-#!/usr/bin/env python3
-"""
-Webpage Screenshotter - Capture screenshots of URLs from JSON files.
-
-This script reads JSON files from an input directory, extracts URLs,
-navigates to each URL using a headless browser, and saves full-page
-screenshots as PNG files.
-"""
-
-import argparse
-import os
-import sys
-import logging
-from pathlib import Path
-from typing import List
-import queue
-import threading
- 
-from .file_finder import find_json_files, validate_directory
-from .json_parser import extract_urls_from_json_file
-from .screenshot_capture import ScreenshotCapture
-from .image_processor import process_screenshot_for_png
-
-# Configure logging for the module
+# Use the global logger configuration
 logger = logging.getLogger(__name__)
-if not logger.handlers:
-    # Only add handler if not already configured to prevent duplicate messages
-    handler = logging.StreamHandler(sys.stdout)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-logger.setLevel(logging.INFO)
+
+# Reduce verbosity of third-party libraries
+logging.getLogger('pydoll').setLevel(logging.ERROR)
+logging.getLogger('asyncio').setLevel(logging.WARNING)
+logging.getLogger('urllib3').setLevel(logging.WARNING)
 
 
 def create_output_path(input_file: str, url: str, input_dir: str, output_dir: str) -> str:
@@ -105,36 +80,60 @@ def create_safe_filename(url: str) -> str:
     return filename or "screenshot"
 
 
-def worker(q: queue.Queue, input_dir: str, output_dir: str, headless: bool, timeout: int, total_screenshots: List[int]):
-    """Worker function to process URLs from the queue."""
-    with ScreenshotCapture(headless=headless, timeout=timeout) as capturer:
+async def worker(q: AsyncQueue, input_dir: str, output_dir: str, headless: bool, timeout: int, total_screenshots: List[int]):
+    """Asynchronous worker function to process URLs from the queue."""
+    async with ScreenshotCapture(headless=headless, timeout=timeout) as capturer:
         while True:
             try:
-                item = q.get()
-                if item is None:
+                item = await q.get()
+                if item is None: # Sentinel for stopping the worker
                     break
 
-                url, json_file = item
-                logger.info(f"Attempting to capture screenshot for: {url}")
+                url, json_file, is_pdf = item
+                action = "download PDF" if is_pdf else "capture screenshot"
+                icon = "📄" if is_pdf else "📸"
+                logger.info(f"{icon} Attempting to {action} for: {url}")
 
                 try:
-                    # Capture screenshot
-                    screenshot_bytes = capturer.capture_full_page_screenshot(url)
-                    output_path = create_output_path(json_file, url, input_dir, output_dir)
-                    process_screenshot_for_png(screenshot_bytes, output_path)
-                    logger.info(f"Successfully saved screenshot: {output_path}")
+                    success = False
+                    if is_pdf:
+                        # Try to download PDF first
+                        try:
+                            pdf_bytes = await capturer.download_pdf(url)
+                            output_path = create_output_path(json_file, url, input_dir, output_dir)
+                            # Change extension to .pdf
+                            output_path = output_path.replace('.png', '.pdf')
+                            Path(output_path).parent.mkdir(parents=True, exist_ok=True) # Ensure output directory exists
+                            with open(output_path, "wb") as f:
+                                f.write(pdf_bytes)
+                            logger.info(f"✅ Successfully saved PDF: {output_path}")
+                            success = True
+                        except Exception as pdf_error:
+                            logger.warning(f"⚠️ Failed to download PDF for {url}: {pdf_error}. Falling back to screenshot.")
+
+                    if not success:
+                        # Capture screenshot (either because it's not a PDF or PDF download failed)
+                        screenshot_bytes = await capturer.capture_full_page_screenshot(url)
+                        output_path = create_output_path(json_file, url, input_dir, output_dir)
+                        Path(output_path).parent.mkdir(parents=True, exist_ok=True) # Ensure output directory exists
+                        with open(output_path, "wb") as f:
+                            f.write(screenshot_bytes)
+                        logger.info(f"✅ Successfully saved screenshot: {output_path}")
 
                     total_screenshots.append(1)
                 except Exception as e:
-                    logger.error(f"Failed to capture screenshot for {url}: {e}")
+                    logger.error(f"❌ Failed to capture data for {url}: {e}")
                 finally:
                     q.task_done()
-            except queue.Empty:
-                continue
+            except asyncio.CancelledError:
+                logger.info(f"Worker cancelled.")
+                break
+            except Exception as e:
+                logger.error(f"An unexpected error occurred in worker: {e}", exc_info=True)
 
 
-def main(input_dir='dataset/acquisition/temp/urls', output_dir='dataset/acquisition/temp/screenshots', timeout=30, verbose: bool = False, headless=True, workers=4): # Added type hint for verbose
-    """Main function to run the webpage screenshotter."""
+async def main_async(input_dir='dataset/acquisition/temp/urls', output_dir='dataset/acquisition/temp/screenshots', timeout=30, verbose: bool = False, headless=True, workers=4):
+    """Main asynchronous function to run the webpage screenshotter."""
 
     # Set up logging based on verbose flag
     logger.setLevel(logging.DEBUG if verbose else logging.INFO)
@@ -147,66 +146,66 @@ def main(input_dir='dataset/acquisition/temp/urls', output_dir='dataset/acquisit
     # Create output directory if it doesn't exist
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    logger.info("Starting webpage screenshotter")
-    logger.info(f"Input directory: {input_dir}")
-    logger.info(f"Output directory: {output_dir}")
-    logger.info(f"Page load timeout: {timeout} seconds")
-    logger.info(f"Headless mode: {headless}")
-    logger.info(f"Number of workers: {workers}")
+    logger.debug("Starting webpage screenshotter")
+    logger.debug(f"Input directory: {input_dir}")
+    logger.debug(f"Output directory: {output_dir}")
+    logger.debug(f"Page load timeout: {timeout} seconds")
+    logger.debug(f"Headless mode: {headless}")
+    logger.debug(f"Number of workers: {workers}")
 
     try:
         # Find all JSON files
         json_files = find_json_files(input_dir)
-        logger.info(f"Found {len(json_files)} JSON files in '{input_dir}'")
+        logger.debug(f"Found {len(json_files)} JSON files in '{input_dir}'")
 
         if not json_files:
             logger.warning("No JSON files found in input directory. Exiting.")
             return
 
-        # Create a queue and populate it with URLs
-        q = queue.Queue()
+        # Create an asyncio queue and populate it with URLs
+        q = AsyncQueue()
         total_urls = 0
         for json_file in json_files:
             try:
-                urls = extract_urls_from_json_file(json_file)
-                for url in urls:
-                    q.put((url, json_file))
+                url_info_list = extract_urls_from_json_file(json_file)
+                for url, is_pdf in url_info_list:
+                    await q.put((url, json_file, is_pdf))
                     total_urls += 1
             except Exception as e:
                 logger.error(f"Error reading JSON file {json_file}: {e}")
-        
-        logger.info(f"Extracted {total_urls} URLs for screenshot capture.")
+
+        logger.debug(f"Extracted {total_urls} URLs for screenshot capture.")
         if total_urls == 0:
             logger.warning("No URLs found for screenshot capture. Exiting.")
             return
 
 
         total_screenshots = []
-        threads = []
+        tasks = []
 
-        # Create and start worker threads
-        for i in range(workers):
-            thread = threading.Thread(
-                target=worker,
-                args=(q, input_dir, output_dir, headless, timeout, total_screenshots),
-                name=f"Worker-{i+1}"
+        # Create and start worker tasks
+        for _ in range(workers):
+            task = asyncio.create_task(
+                worker(q, input_dir, output_dir, headless, timeout, total_screenshots)
             )
-            thread.start()
-            threads.append(thread)
+            tasks.append(task)
 
         # Wait for all tasks to be processed
-        q.join()
+        await q.join()
 
-        # Stop workers
+        # Stop workers (send sentinel values)
         for _ in range(workers):
-            q.put(None)
-        for thread in threads:
-            thread.join()
+            await q.put(None)
+        
+        # Wait for all worker tasks to finish
+        await asyncio.gather(*tasks, return_exceptions=True)
 
         logger.info(f"Webpage screenshotter completed. Total screenshots captured: {len(total_screenshots)}")
 
+    except asyncio.CancelledError:
+        logger.info("Webpage screenshotter process interrupted by user (asyncio.CancelledError).")
     except KeyboardInterrupt:
-        logger.info("Webpage screenshotter process interrupted by user.")
+        logger.info("Webpage screenshotter process interrupted by user (KeyboardInterrupt).")
     except Exception as e:
         logger.critical(f"An unexpected error occurred in webpage screenshotter: {e}", exc_info=True)
 
@@ -272,4 +271,4 @@ Examples:
     )
 
     args = parser.parse_args()
-    main(args.input_dir, args.output_dir, args.timeout, args.verbose, args.headless, args.workers)
+    asyncio.run(main_async(args.input_dir, args.output_dir, args.timeout, args.verbose, args.headless, args.workers))
