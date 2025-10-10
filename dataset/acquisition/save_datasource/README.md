@@ -1,14 +1,16 @@
-# Screenshot Capture Module
+# Datasource Capture Module
 
-Captures full-page screenshots of URLs from JSON files using Selenium WebDriver.
+Captures full-page screenshots of URLs and downloads PDF files from JSON files using Selenium WebDriver and requests.
 
 ## Features
 
 - **Full-Page Screenshots**: Captures complete webpage content
+- **PDF Downloads**: Downloads PDF files directly when dorks indicate PDF content
 - **Headless Chrome**: Fast, automated screenshot capture
-- **PNG Format**: High-quality image output
+- **PNG/PDF Format**: High-quality image output and PDF downloads
 - **Recursive Processing**: Finds JSON files in subdirectories
 - **URL Extraction**: Automatically extracts URLs from JSON structures
+- **Dork Detection**: Automatically detects PDF URLs based on search dorks
 - **Error Handling**: Robust processing with detailed logging
 
 ## Usage
@@ -42,7 +44,7 @@ JSON files containing URLs in any structure:
 
 ## Output
 
-Screenshots saved as PNG files in a mirrored directory structure.
+Screenshots saved as PNG files and PDFs downloaded directly, in a mirrored directory structure.
 
 ## Dependencies
 

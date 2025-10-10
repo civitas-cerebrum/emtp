@@ -7,9 +7,13 @@ ddgs>=0.1.0
 selenium>=4.15.0
 Pillow>=10.0.0
 webdriver-manager>=4.0.0
+pydoll-python>=2.9.0
 
 # Screenshot processing dependencies
 pytesseract>=0.3.10
 language-tool-python>=2.9.4
+
+# PDF processing dependencies
+pypdf>=4.0.0
 
 requests

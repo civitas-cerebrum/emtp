@@ -26,22 +26,25 @@ if not logger.handlers:
 logger.setLevel(logging.INFO)
 
 
-def search_and_save_urls(questions_data, base_output_dir="dataset/acquisition/temp/urls", verbose: bool = False):
+def search_and_save_urls(questions_data, base_output_dir="dataset/acquisition/temp/urls", verbose: bool = False, dorks: str = None):
     """Searches for questions and saves the resulting URLs to separate JSON files per category."""
     os.makedirs(base_output_dir, exist_ok=True)
 
     logger.setLevel(logging.DEBUG if verbose else logging.INFO) # Set level for this call
     logger.info(f"Starting URL retrieval to: {base_output_dir}")
+    if dorks:
+        logger.info(f"Using dorks: {dorks}")
 
     for category, questions in questions_data.items():
         logger.info(f"Processing category: {category}")
         category_results = []
-        for question in questions:
-            logger.debug(f"Searching for question: {question}")
-            result = search_question(category, question)
+        for question_data in questions:
+            question_text = question_data.get('question', str(question_data)) if isinstance(question_data, dict) else question_data
+            logger.debug(f"Processing question: {question_text}")
+            result = search_question(category, question_data, dorks)
             if result:
                 category_results.append(result)
-                logger.debug(f"Found {len(result.get('urls', []))} URLs for '{question}'")
+                logger.debug(f"Found {len(result.get('urls', []))} URLs for '{question_text}'")
             time.sleep(1)
 
         safe_filename = "".join(c for c in category if c.isalnum() or c in (' ', '-', '_')).rstrip()
@@ -55,9 +58,9 @@ def search_and_save_urls(questions_data, base_output_dir="dataset/acquisition/te
     logger.info(f"Finished retrieving URLs. Results saved to {base_output_dir}/")
 
 
-def main(output_dir='dataset/acquisition/temp/urls', questions_file='sample.json', verbose: bool = False):
+def main(output_dir='dataset/acquisition/temp/urls', questions_file='sample.json', verbose: bool = False, dorks: str = None):
     questions_data = get_questions(filename=questions_file)
-    search_and_save_urls(questions_data, output_dir, verbose)
+    search_and_save_urls(questions_data, output_dir, verbose, dorks)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Search questions using DuckDuckGo')
@@ -67,6 +70,8 @@ if __name__ == "__main__":
                         help='Questions file (default: sample.json)')
     parser.add_argument('--verbose', '-v', action='store_true',
                         help='Enable verbose logging')
+    parser.add_argument('--dorks', type=str,
+                        help='DuckDuckGo search operators to apply to all searches (e.g., "filetype:pdf site:example.com")')
 
     args = parser.parse_args()
-    main(args.output_dir, args.questions_file, args.verbose)
+    main(args.output_dir, args.questions_file, args.verbose, args.dorks)
