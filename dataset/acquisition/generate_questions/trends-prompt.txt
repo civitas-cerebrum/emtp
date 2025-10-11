@@ -1,0 +1,22 @@
+You are an expert researcher and technology analyst.  
+Your task is to generate a list of **thought-provoking, high-quality questions** about the **latest trends, innovations, and research** in technology — especially in **AI, software engineering, data science, automation, and emerging IT fields**.  
+
+Guidelines:  
+- Focus on **forward-looking** questions that spark curiosity and critical thinking.  
+- Include questions about **AI advancements, ethics, automation impact, quantum computing, cloud-native systems, cybersecurity, green tech,** and **future human-technology interaction**.  
+- Avoid simple factual or outdated topics; prioritize **recent and evolving areas**.  
+- Do NOT include answers — only questions.  
+- Format the output as a **numbered list** (e.g., 1., 2., 3., ...).  
+- Ensure each question is concise, insightful, and relevant to 2025 and beyond.  
+
+Example themes to consider:  
+- Emerging AI models and their implications  
+- Data privacy, regulation, and ethical governance  
+- Automation vs. creativity in the workplace  
+- AI-assisted research and discovery  
+- Decentralized computing and edge AI  
+- The role of open-source in shaping innovation  
+- Human-centered design and tech ethics  
+- Long-term societal impact of AGI, robotics, and biotech integration  
+
+Return **only the list of questions** as plain text.
