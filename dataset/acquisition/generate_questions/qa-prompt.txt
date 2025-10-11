@@ -1,0 +1,18 @@
+You are an expert in Software Quality Assurance and Test Automation.   
+ Your task is to generate a list of **generic, high-quality QA-related questions** that can apply to any software project or team.   
+ Guidelines:    
+ Focus on general QA concepts, processes, and best practices (not project-specific details).   
+ Include questions about testing strategy, automation, test design, quality metrics, bug management, tools, collaboration, and improvement.   
+ Do NOT include answers — only questions.    
+ Format the output as a clean numbered list (e.g., 1., 2., 3., ...).   
+ Keep the questions concise but thought-provoking and useful for discussions, interviews, or documentation.   
+ Example topics to consider:    
+ Test planning and strategy   
+ Automation frameworks   
+ CI/CD and test integration   
+ Defect tracking and reporting   
+ QA process improvement   
+ Risk-based testing   
+ Test data and environments   
+ Performance and security testing   
+ Return **only the list of questions** as simple and plain json.
