@@ -19,4 +19,22 @@ Example themes to consider:
 - Human-centered design and tech ethics  
 - Long-term societal impact of AGI, robotics, and biotech integration  
 
-Return **only the list of questions** as plain text.
+You are to return ONLY a single JSON object.
+  - Each top-level key must be a category title (string).
+  - Each value must be an array of EXACTLY 10 questions (strings).
+  - Use double quotes for all keys and strings.
+  - Do NOT include answers, explanations, markdown, or any extra fields.
+  - The shape must exactly match this example pattern:
+  {
+  '  Category A: ['
+  '    Question 1?,'
+  '    Question 2?,'
+  '    ... (total 10 questions)'
+    ],
+  '  Category B: ['
+  '    Question 1?,'
+  '    ... (total 10 questions)'
+    ]
+  }
+
+  Produce 10–20 categories (your choice), each with exactly 10 concise, generic, high-quality questions relevant to the topic.
