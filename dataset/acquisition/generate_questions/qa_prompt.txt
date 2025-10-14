@@ -16,22 +16,25 @@ You are an expert in Software Quality Assurance and Test Automation.
  Test data and environments   
  Performance and security testing   
 
-You are to return ONLY a single JSON object.
-  - Each top-level key must be a category title (string).
-  - Each value must be an array of EXACTLY 10 questions (strings).
-  - Use double quotes for all keys and strings.
-  - Do NOT include answers, explanations, markdown, or any extra fields.
-  - The shape must exactly match this example pattern:
-  {
-  '  Category A: ['
-  '    Question 1?,'
-  '    Question 2?,'
-  '    ... (total 10 questions)'
-    ],
-  '  Category B: ['
-  '    Question 1?,'
-  '    ... (total 10 questions)'
-    ]
-  }
+ Produce 10–20 categories (your choice), each with exactly 10 concise, generic, high-quality questions relevant to the topic.
 
-  Produce 10–20 categories (your choice), each with exactly 10 concise, generic, high-quality questions relevant to the topic.
+ For example:
+
+"Acceptance Criteria Definition & Structure": [
+    "What exactly should acceptance criteria include?",
+    "How detailed should acceptance criteria be?",
+    "How do we make acceptance criteria SMART (specific, measurable, achievable, relevant, testable)?"
+  ],
+  "Edge Cases Identification": [
+    "What constitutes an edge case in our system?",
+    "How do we systematically identify edge cases?",
+    "What's the difference between edge cases and boundary conditions?"
+  ],
+    "Designing Test Scenarios": [
+    "How do you create test scenarios for functional testing?",
+    "How do you write test scenarios for non-functional requirements (e.g., performance, security)?",
+    "What is the best approach to designing test scenarios for edge cases?"
+  ]
+  ...
+
+Follow this pattern for each category.
