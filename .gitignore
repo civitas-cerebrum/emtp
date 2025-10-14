@@ -40,5 +40,4 @@ Thumbs.db
 /dataset/acquisition/temp
 dataset/enrichment/config.ini
 dataset/enrichment/qna_dataset.json
-empt-project/emtp/config.ini
 config.ini
