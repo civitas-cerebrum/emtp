@@ -19,6 +19,20 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y tesseract-ocr
 
+    - name: Run Trivy vulnerability scanner in repo mode
+      uses: aquasecurity/trivy-action@0.28.0
+      with:
+        scan-type: 'fs'
+        ignore-unfixed: true
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        severity: 'CRITICAL'
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'trivy-results.sarif'
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
@@ -27,12 +41,18 @@ jobs:
     - name: Install dependencies
       run: pip install -r requirements.txt
 
+    - name: Install Semgrep CLI
+      run: python3 -m pip install semgrep
+
+    - name: Run Semgrep SAST and Secrets Scanning
+      run: semgrep ci
+
     - name: Configure config.ini
       run: |
-        sed -i 's/^base_url = .*$/base_url = ${{ secrets.BASE_URL }}/' config.ini
-        sed -i 's/^model_name = .*$/model_name = ${{ secrets.MODEL }}/' config.ini
-        sed -i 's/^authorization_token = .*$/authorization_token = ${{ secrets.AUTH_TOKEN }}/' config.ini
-        sed -i 's/^dataset_prompt = .*$/dataset_prompt = ${{ vars.DATASET_PROMPT }}/' config.ini
+        sed -i 's#^base_url = .*$#base_url = ${{ secrets.BASE_URL }}#' config.ini
+        sed -i 's#^model_name = .*$#model_name = ${{ secrets.MODEL }}#' config.ini
+        sed -i 's#^authorization_token = .*$#authorization_token = ${{ secrets.AUTH_TOKEN }}#' config.ini
+        sed -i 's#^dataset_prompt = .*$#dataset_prompt = "${{ vars.DATASET_PROMPT }}"#' config.ini
 
     - name: Run EMTP Pipeline
       run: python main.py --stage full_pipeline --questions-file dataset/acquisition/retrieve_url/sample.json --text-data-output-dir dataset/acquisition/temp/text_data --accurate --verbose
