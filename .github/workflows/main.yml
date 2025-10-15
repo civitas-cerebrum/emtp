@@ -21,6 +21,17 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y tesseract-ocr
+        sudo apt-get install -y autoconf automake libtool
+        sudo apt-get install -y pkg-config
+        sudo apt-get install -y libpng-dev
+        sudo apt-get install -y libjpeg8-dev
+        sudo apt-get install -y libtiff5-dev
+        sudo apt-get install -y zlib1g-dev
+        sudo apt-get install -y libwebpdemux2 libwebp-dev
+        sudo apt-get install -y libopenjp2-7-dev
+        sudo apt-get install -y libgif-dev
+        sudo apt-get install -y libarchive-dev libcurl4-openssl-dev
+        sudo apt-get install -y g++ clang
 
     - name: Run Trivy vulnerability scanner in repo mode
       uses: aquasecurity/trivy-action@0.28.0
