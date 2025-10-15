@@ -19,7 +19,6 @@ jobs:
 
     - name: Install Tesseract OCR
       run: |
-        sudo apt-get update
         sudo apt-get install -y tesseract-ocr
         sudo apt-get install -y autoconf automake libtool
         sudo apt-get install -y pkg-config
@@ -40,7 +39,7 @@ jobs:
         ignore-unfixed: true
         format: 'sarif'
         output: 'trivy-results.sarif'
-        severity: 'CRITICAL'
+        severity: 'CRITICAL, HIGH'
 
     - name: Upload Trivy scan results to GitHub Security tab
       uses: github/codeql-action/upload-sarif@v3
@@ -60,7 +59,14 @@ jobs:
       run: python3 -m pip install semgrep
 
     - name: Run Semgrep SAST and Secrets Scanning
-      run: semgrep ci
+      run: semgrep scan --sarif --sarif-output=semgrep.sarif
+
+    - name: Upload Semgrep scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'semgrep.sarif'
+
 
     - name: Configure config.ini
       run: |
