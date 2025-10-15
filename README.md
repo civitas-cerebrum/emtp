@@ -1,5 +1,6 @@
 # EMTP - Expert Model Training Pipeline
 
+
 EMTP is a comprehensive pipeline for acquiring, processing, and preparing data for training expert AI models. The pipeline focuses on quality assurance (QA) related content, systematically collecting questions, retrieving relevant URLs using DuckDuckGo search with optional dorks support, and capturing webpage screenshots or downloading PDFs.
 
 ## Key Features
