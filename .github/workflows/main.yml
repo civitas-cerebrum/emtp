@@ -29,8 +29,10 @@ jobs:
 
     - name: Configure config.ini
       run: |
+        sed -i 's/^base_url = .*$/base_url = ${{ secrets.BASE_URL }}/' config.ini
         sed -i 's/^model_name = .*$/model_name = ${{ secrets.MODEL }}/' config.ini
         sed -i 's/^authorization_token = .*$/authorization_token = ${{ secrets.AUTH_TOKEN }}/' config.ini
+        sed -i 's/^dataset_prompt = .*$/dataset_prompt = ${{ vars.DATASET_PROMPT }}/' config.ini
 
     - name: Run EMTP Pipeline
       run: python main.py --stage full_pipeline --questions-file dataset/acquisition/retrieve_url/sample.json --text-data-output-dir dataset/acquisition/temp/text_data --accurate --verbose
