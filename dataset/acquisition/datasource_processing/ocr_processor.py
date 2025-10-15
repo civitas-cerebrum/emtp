@@ -63,20 +63,32 @@ def process_file(file_path, output_dir=None, use_language_tool=False):
 def extract_text_from_image(image_path):
     """Extract text from an image file using OCR."""
     try:
+        logger.info(f"Opening image: {image_path}")
         image = Image.open(image_path)
+        
+        logger.info(f"Image opened. Size: {image.size}, Mode: {image.mode}")
+        logger.info(f"Running Tesseract OCR...")
+        
         text = pytesseract.image_to_string(
             image,
-            config=r'--oem 3 --psm 3'
+            config=r'--oem 3 --psm 3',
+            timeout=30
         )
+        
+        logger.info(f"OCR completed. Extracted {len(text)} characters")
         return text
     except pytesseract.TesseractNotFoundError:
         logger.error("Tesseract-OCR is not installed or not in your PATH. Please install it.")
         raise
+    except RuntimeError as timeout_error:
+        logger.error(f"Tesseract timeout processing {image_path}: {timeout_error}")
+        return ""
     except pytesseract.TesseractError as e:
         if "Estimating resolution as" in str(e):
             logger.warning(f"Tesseract resolution estimation failed for {image_path}: {e}. Skipping text extraction for this file.")
             return ""
         else:
+            logger.error(f"Tesseract error: {e}")
             raise
 
 
