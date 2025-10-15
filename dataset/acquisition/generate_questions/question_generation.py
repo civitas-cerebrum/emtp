@@ -9,7 +9,7 @@ base_url = cfg["DEFAULT"]["base_url"]
 model_name = cfg["DEFAULT"]["model_name"]
 auth = cfg["DEFAULT"].get("authorization_token", "").strip()
 
-with open("dataset/acquisition/generate_questions/qa_prompt.txt", "r", encoding="utf-8") as f:
+with open("dataset/acquisition/generate_questions/trend_prompt.txt", "r", encoding="utf-8") as f:
     prompt = f.read()
 
 body = {
