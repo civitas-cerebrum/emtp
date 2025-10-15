@@ -1,0 +1,31 @@
+name: EMTP Pipeline
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-run:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+
+    - name: Install dependencies
+      run: pip install -r requirements.txt
+
+    - name: Configure config.ini
+      run: |
+        sed -i 's/^model_name = .*$/model_name = ${{ secrets.MODEL }}/' config.ini
+        sed -i 's/^authorization_token = .*$/authorization_token = ${{ secrets.AUTH_TOKEN }}/' config.ini
+
+    - name: Run EMTP Pipeline
+      run: python main.py --stage full_pipeline --questions-file dataset/acquisition/retrieve_url/sample.json --text-data-output-dir dataset/acquisition/temp/text_data --accurate --verbose
