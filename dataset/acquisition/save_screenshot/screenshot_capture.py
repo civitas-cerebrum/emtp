@@ -89,7 +89,7 @@ class ScreenshotCapture:
             )
 
             try:
-                script = 'const elementsToRemove = document.querySelectorAll(\'[id*="cookie"], [class*="fc-consent-root"], [role="dialog"], #snigel-cmp-framework, .fc-consent-root, [class*="overlay"], [class*="ot-fade-in"],[id*="consent"], [class*="consent"]\'); elementsToRemove.forEach(element => {element.remove();});'
+                script = 'const elementsToRemove = document.querySelectorAll(\'[id*="cookie"], [class*="fc-consent-root"], [role="dialog"], #snigel-cmp-framework, .fc-consent-root, .qc-cmp2-container, [class*="overlay"], [class*="ot-fade-in"],[id*="consent"], [class*="consent"]\'); elementsToRemove.forEach(element => {element.remove();});'
 
                 self.driver.execute_script(script)
                 print("Cookie popup removed!")
