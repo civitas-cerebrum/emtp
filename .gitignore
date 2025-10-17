@@ -38,6 +38,5 @@ venv.bak/
 .DS_Store
 Thumbs.db
 /dataset/acquisition/temp
-dataset/enrichment/config.ini
-dataset/enrichment/qna_dataset.json
-config.ini
+config.ini 
+qna_dataset.json
