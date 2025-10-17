@@ -62,8 +62,8 @@ def main(input_dir: str, output_dir: str, accurate: bool = False, verbose: bool 
             return
         image_files = [input_path]
     else:
-        png_files = list(input_path.glob('*.png'))
-        tiff_files = list(input_path.glob('*.tiff')) + list(input_path.glob('*.tif'))
+        png_files = list(input_path.glob('**/*.png'))
+        tiff_files = list(input_path.glob('**/*.tiff')) + list(input_path.glob('**/*.tif'))
         image_files = png_files + tiff_files
 
     if not image_files:

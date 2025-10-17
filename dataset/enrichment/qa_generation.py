@@ -85,9 +85,10 @@ def generate_qna_dataset(prompt="You are an expert in {model_expertise}." ,model
 
     return qna_dataset
 
-def main(input_dir=None):
-    config = configparser.ConfigParser()
-    config.read('config.ini')
+def main(input_dir=None, config=None):
+    if(config==None):
+        config = configparser.ConfigParser()
+        config.read('config.ini')
 
     model_expertise = config['DEFAULT']['model_expertise']
     if input_dir == None:
