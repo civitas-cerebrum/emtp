@@ -41,5 +41,3 @@ Thumbs.db
 dataset/enrichment/config.ini
 dataset/enrichment/qna_dataset.json
 config.ini
-dataset/acquisition/generate_questions/qa_prompt.txt
-dataset/acquisition/generate_questions/trend_prompt.txt
