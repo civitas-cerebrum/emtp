@@ -45,11 +45,6 @@ class ScreenshotCapture:
         chrome_options.add_argument("--disable-infobars")
         chrome_options.add_argument("--disable-cookies")
         chrome_options.add_argument("--disable-notifications")
-        chrome_options.add_argument("--test-third-party-cookie-phaseout")
-        chrome_options.add_argument("--deny-permission-prompts")
-        chrome_options.add_argument("--host-resolver-rules='MAP *cookielaw.org 0.0.0.0'")
-        chrome_options.add_experimental_option("prefs", {"profile.cookie_controls_mode": 1})
-        chrome_options.add_experimental_option("prefs", {"profile.default_content_setting_values.cookies": 2})
         
         # Install and use ChromeDriver
         self.driver = webdriver.Chrome(options=chrome_options)
@@ -92,10 +87,10 @@ class ScreenshotCapture:
             )
 
             try:
-                script = 'const elementsToRemove = document.querySelectorAll(\'[id*="cookie"], [class*="fc-consent-root"], [class*="overlay"], [class*="ot-fade-in"],[id*="consent"], [class*="consent"]\'); elementsToRemove.forEach(element => {element.remove();});'
+                script = 'const elementsToRemove = document.querySelectorAll(\'[id*="cookie"], [class*="fc-consent-root"], [role="dialog"], [class*="overlay"], [class*="ot-fade-in"],[id*="consent"], [class*="consent"]\'); elementsToRemove.forEach(element => {element.remove();});'
 
                 self.driver.execute_script(script)
-                print("Google cookie popup removed!")
+                print("Cookie popup removed!")
 
             except Exception as ignored:
                 print("No google cookie popup!")

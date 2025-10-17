@@ -8,6 +8,7 @@ of the data acquisition pipeline with customizable input/output paths.
 
 import os
 import sys
+import configparser
 import argparse
 from dataset.acquisition import retrieve_url_stage, save_screenshot_stage, screenshot_processing_stage
 from dataset.enrichment import qa_generation
@@ -47,12 +48,11 @@ def run_screenshot_processing(input_dir='dataset/acquisition/temp/screenshots', 
     screenshot_processing_stage(input_dir, output_dir, verbose=verbose, accurate=accurate) # Positional arguments
     print(f"Screenshot processing completed! Text data saved to {output_dir}")
 
-def run_semi_sythetic_data_generation(input_dir='dataset/acquisition/temp/text_data'):
+def run_semi_sythetic_data_generation(input_dir='dataset/acquisition/temp/text_data', config=None):
     """Run Q&A generation stage."""
     print(f"Starting semi-sythetic data generation...")
     ensure_dir(input_dir)
-    qa_generation(input_dir) # Positional arguments
-    print(f"Screenshot processing completed! Text data saved to {output_dir}")
+    qa_generation(input_dir, config) # Positional arguments
 
 def get_user_choice():
     """Get user's choice for which stage to run."""
@@ -93,6 +93,9 @@ def get_log_level_input():
             print("Invalid log level. Please choose from DEBUG, INFO, WARNING, ERROR, CRITICAL.")
 
 def main():
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+
     """Main interactive loop or direct execution via arguments."""
     parser = argparse.ArgumentParser(description="EMTP Data Acquisition Pipeline")
     parser.add_argument('--stage', type=str, choices=['url_retrieval', 'screenshot_capture', 'screenshot_processing', 'full_pipeline'],
@@ -131,7 +134,7 @@ def main():
             run_url_retrieval(args.questions_file, args.urls_output_dir, verbose=verbose_logging)
             run_screenshot_capture(args.urls_output_dir, args.screenshots_output_dir, verbose=verbose_logging)
             run_screenshot_processing(args.screenshots_output_dir, args.text_data_output_dir, verbose=verbose_logging, accurate=args.accurate)
-            run_semi_sythetic_data_generation()
+            run_semi_sythetic_data_generation(config=config)
             print("Full pipeline completed!")
             print(f"Intermediate URLs saved to: {args.urls_output_dir}")
             print(f"Intermediate screenshots saved to: {args.screenshots_output_dir}")
@@ -187,6 +190,8 @@ def main():
                 # Run screenshot processing
                 run_screenshot_processing(screenshots_temp, final_text_output, verbose=verbose_logging, accurate=True) # Automatically use accurate mode
 
+                run_semi_sythetic_data_generation(config=config)
+                
                 print("Full pipeline completed!")
                 print(f"Intermediate URLs saved to: {urls_temp}")
                 print(f"Intermediate screenshots saved to: {screenshots_temp}")
