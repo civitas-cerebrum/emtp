@@ -1,10 +1,3 @@
-import json
-import time
-import threading
-import argparse
-import os
-from .data_loader import get_questions
-from .search_engine import search_question
 
 import json
 import time

@@ -1,10 +1,12 @@
-# IDEs
+# IDEs and editor files
 /.idea/
 .vscode/
 
 # Python
 __pycache__/
 *__pycache__/
+# Python: Build, cache, and compiled files
+**pycache**/
 *.py[cod]
 *$py.class
 *.so
@@ -25,7 +27,7 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual environments
+# Virtual environments (common names and paths)
 .env
 .venv
 env/
@@ -34,10 +36,12 @@ ENV/
 env.bak/
 venv.bak/
 
-# OS
+# OS-specific temporary files
 .DS_Store
 Thumbs.db
 /dataset/acquisition/temp
 dataset/enrichment/config.ini
 dataset/enrichment/qna_dataset.json
 config.ini
+qna_dataset.json
+

@@ -21,10 +21,10 @@ emtp/
 ├── qna_dataset.json        # Generated Q&A dataset from processed text data
 ├── .gitignore              # Specifies intentionally untracked files and directories to ignore by Git
 ├── dataset/                # Top-level directory for all data, organized into acquisition, enrichment, and questions
-│   ├── README.md           # Provides an overview of the dataset directory's purpose and contents
+│   ├── .about.md           # Provides an overview of the dataset directory's purpose and contents
 │   ├── acquisition/        # Contains all modules and scripts responsible for data acquisition stages
 │   │   ├── __init__.py     # Marks `acquisition` as a Python package and handles module connections
-│   │   ├── README.md       # Detailed documentation for the data acquisition process
+│   │   ├── .about.md       # Detailed documentation for the data acquisition process
 │   │   ├── temp/           # Temporary storage for intermediate data generated during acquisition
 │   │   │   ├── urls/       # Stores JSON files containing URLs retrieved from search engines
 │   │   │   ├── datasources/ # Stores captured web page screenshots and downloaded PDFs
