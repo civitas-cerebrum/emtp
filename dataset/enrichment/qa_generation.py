@@ -3,7 +3,7 @@ import configparser
 import requests
 import json
 
-def generate_qna_dataset(prompt="You are an expert in {model_expertise}." ,model_expertise="Software Engineering", input_dir="../acquisition/temp/text_data", base_url="http://localhost:8080/api/generate", model_name="gemma3:27b", authorization_token=None):
+def generate_qna_dataset(prompt="You are an expert in {domain_of_expertise}. Generate questions and answers based on the text content you are provided with." ,model_expertise="Software Engineering", input_dir="../acquisition/temp/text_data", base_url="http://localhost:8080/api/generate", model_name="gemma3:27b", authorization_token=None):
     """
     Generates a semi-synthetic Q&A dataset from text files in a directory using Ollama.
 

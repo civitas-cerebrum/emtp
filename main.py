@@ -60,23 +60,26 @@ def get_user_choice():
     print("EMTP Data Acquisition Pipeline")
     print("="*50)
     print("Choose a stage to run:")
-    print("1. URL Retrieval (from questions to URLs)")
-    print("2. Screenshot Capture (from URLs to images)")
-    print("3. Screenshot Processing (from images to text)")
-    print("4. Run Full Pipeline (all stages)")
-    print("5. Exit")
+    print("1. Run Full Pipeline (all stages)")
+    print("2. URL Retrieval (from questions to URLs)")
+    print("3. Screenshot Capture (from URLs to images)")
+    print("4. Screenshot Processing (from images to text)")
+    print("5. Dataset generation (from text to Q&A)")
+    print("6. Exit")
     print("="*50)
 
     while True:
         try:
-            choice = input("Enter your choice (1-5): ").strip()
-            if choice in ['1', '2', '3', '4', '5']:
+            choice = input("Enter your choice (1-6) [1]: ").strip()
+            if not choice:  # empty input → default to 1
+                return '1'
+            elif choice in ['1', '2', '3', '4', '5', '6']:
                 return choice
             else:
-                print("Invalid choice. Please enter 1, 2, 3, 4, or 5.")
+                print("Invalid choice. Please enter 1, 2, 3, 4, 5 or 6.")
         except KeyboardInterrupt:
             print("\nExiting...")
-            return '5' # Changed to '5' for exit
+            return '6' 
 
 def get_path_input(prompt, default):
     """Get path input from user with default."""
@@ -98,7 +101,7 @@ def main():
 
     """Main interactive loop or direct execution via arguments."""
     parser = argparse.ArgumentParser(description="EMTP Data Acquisition Pipeline")
-    parser.add_argument('--stage', type=str, choices=['url_retrieval', 'screenshot_capture', 'screenshot_processing', 'full_pipeline'],
+    parser.add_argument('--stage', type=str, choices=['full_pipeline', 'url_retrieval', 'screenshot_capture', 'screenshot_processing', 'dataset_generation'],
                         help='Specify the pipeline stage to run directly (non-interactive mode).')
     parser.add_argument('--questions-file', type=str, default='sample.json',
                         help='Path to the questions JSON file.')
@@ -129,6 +132,8 @@ def main():
             run_screenshot_capture(args.urls_output_dir, args.screenshots_output_dir, verbose=verbose_logging)
         elif args.stage == 'screenshot_processing':
             run_screenshot_processing(args.screenshots_output_dir, args.text_data_output_dir, verbose=verbose_logging, accurate=args.accurate)
+        elif args.stage == 'dataset_generation':
+            run_semi_sythetic_data_generation(config=config)
         elif args.stage == 'full_pipeline':
             print("Running full pipeline...")
             run_url_retrieval(args.questions_file, args.urls_output_dir, verbose=verbose_logging)
@@ -145,7 +150,7 @@ def main():
         while True:
             choice = get_user_choice()
 
-            if choice == '5':
+            if choice == '6':
                 print("Goodbye!")
                 break
             
@@ -153,23 +158,6 @@ def main():
             verbose_logging = (log_level == 'DEBUG') # Set verbose true only for DEBUG
 
             if choice == '1':
-                # URL Retrieval
-                questions_file = get_path_input("Questions file path", "sample.json")
-                output_dir = get_path_input("Output directory for URLs", "dataset/acquisition/temp/urls")
-                run_url_retrieval(questions_file, output_dir, verbose=verbose_logging)
-
-            elif choice == '2':
-                # Screenshot Capture
-                input_dir = get_path_input("Input directory with URLs", "dataset/acquisition/temp/urls")
-                output_dir = get_path_input("Output directory for screenshots", "dataset/acquisition/temp/screenshots")
-                run_screenshot_capture(input_dir, output_dir, verbose=verbose_logging)
-
-            elif choice == '3':
-                # Screenshot Processing
-                input_dir = get_path_input("Input directory with screenshots", "dataset/acquisition/temp/screenshots")
-                output_dir = get_path_input("Output directory for text data", "dataset/acquisition/temp/text_data")
-                run_screenshot_processing(input_dir, output_dir, verbose=verbose_logging, accurate=True) # Automatically use accurate mode
-            elif choice == '4':
                 # Full Pipeline
                 print("Running full pipeline...")
 
@@ -196,6 +184,30 @@ def main():
                 print(f"Intermediate URLs saved to: {urls_temp}")
                 print(f"Intermediate screenshots saved to: {screenshots_temp}")
                 print(f"Final text data saved to: {final_text_output}")
+
+            elif choice == '2':
+                # URL Retrieval
+                questions_file = get_path_input("Questions file path", "sample.json")
+                output_dir = get_path_input("Output directory for URLs", "dataset/acquisition/temp/urls")
+                run_url_retrieval(questions_file, output_dir, verbose=verbose_logging)
+
+            elif choice == '3':
+                # Screenshot Capture
+                input_dir = get_path_input("Input directory with URLs", "dataset/acquisition/temp/urls")
+                output_dir = get_path_input("Output directory for screenshots", "dataset/acquisition/temp/screenshots")
+                run_screenshot_capture(input_dir, output_dir, verbose=verbose_logging)
+
+            elif choice == '4':
+                # Screenshot Processing
+                input_dir = get_path_input("Input directory with screenshots", "dataset/acquisition/temp/screenshots")
+                output_dir = get_path_input("Output directory for text data", "dataset/acquisition/temp/text_data")
+                run_screenshot_processing(input_dir, output_dir, verbose=verbose_logging, accurate=True) # Automatically use accurate mode
+
+            elif choice == '5':
+                # Dataset generation
+                run_semi_sythetic_data_generation(config=config)
+
+                
 
 if __name__ == "__main__":
     main()

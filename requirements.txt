@@ -11,3 +11,23 @@ webdriver-manager>=4.0.0
 # Screenshot processing dependencies
 pytesseract>=0.3.10
 language-tool-python>=2.9.4
+
+requests
+
+# Training script dependencies
+torch==2.7.0+cu128
+torchvision==0.22.0+cu128
+torchaudio==2.7.0+cu128
+--extra-index-url https://download.pytorch.org/whl/cu128
+
+transformers>=4.51.3
+tensorboard
+
+datasets==3.3.2
+accelerate==1.4.0
+evaluate==0.4.3
+bitsandbytes==0.45.3
+trl==0.15.2
+peft==0.14.0
+protobuf
+sentencepiece
