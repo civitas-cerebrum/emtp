@@ -79,6 +79,8 @@ class ScreenshotCapture:
             # Optional: Add a short, minimal sleep for dynamic content to settle
             time.sleep(0.5)
 
+            original_size = self.driver.get_window_size()
+
             # Get the full page height
             total_height = self.driver.execute_script(
                 "return Math.max(document.body.scrollHeight, document.body.offsetHeight, "
@@ -87,7 +89,7 @@ class ScreenshotCapture:
             )
 
             try:
-                script = 'const elementsToRemove = document.querySelectorAll(\'[id*="cookie"], [class*="fc-consent-root"], [role="dialog"], [class*="overlay"], [class*="ot-fade-in"],[id*="consent"], [class*="consent"]\'); elementsToRemove.forEach(element => {element.remove();});'
+                script = 'const elementsToRemove = document.querySelectorAll(\'[id*="cookie"], [class*="fc-consent-root"], [role="dialog"], #snigel-cmp-framework, .fc-consent-root, .qc-cmp2-container, [class*="overlay"], [class*="ot-fade-in"],[id*="consent"], [class*="consent"]\'); elementsToRemove.forEach(element => {element.remove();});'
 
                 self.driver.execute_script(script)
                 print("Cookie popup removed!")
@@ -100,6 +102,8 @@ class ScreenshotCapture:
 
             # Take screenshot
             screenshot = self.driver.get_screenshot_as_png()
+
+            self.driver.set_window_size(original_size['width'], original_size['height'])
 
             return screenshot
 
