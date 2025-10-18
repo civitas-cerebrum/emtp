@@ -12,14 +12,13 @@ from .text_cleaner import init_language_tool, FAST_MODE
 import logging
 import sys # Import sys for StreamHandler
 
-# Configure logging for the module
+# Use the global logger configuration
 logger = logging.getLogger(__name__)
-if not logger.handlers:
-    handler = logging.StreamHandler(sys.stdout)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-logger.setLevel(logging.INFO)
+
+# Reduce verbosity of third-party libraries
+logging.getLogger('PIL').setLevel(logging.CRITICAL)
+logging.getLogger('multiprocessing').setLevel(logging.CRITICAL)
+logging.getLogger('language_tool_python').setLevel(logging.CRITICAL)
 
 
 def main(input_dir: str, output_dir: str, accurate: bool = False, verbose: bool = False):
@@ -32,57 +31,61 @@ def main(input_dir: str, output_dir: str, accurate: bool = False, verbose: bool 
         accurate (bool): Use more accurate but slower processing.
         verbose (bool): Enable verbose logging.
     """
-    # Set logging level for this call
-    logger.setLevel(logging.DEBUG if verbose else logging.INFO)
+    logger.setLevel(logging.DEBUG if verbose else logging.CRITICAL) # Default to CRITICAL for CI
 
-    # Set processing mode
     global FAST_MODE
     FAST_MODE = not accurate
 
-    # Initialize language tool if needed
     if not FAST_MODE:
         init_language_tool()
 
-    # Handle input path
     input_path = Path(input_dir)
     if not input_path.exists():
         logger.error(f"Input path '{input_path}' does not exist")
-        return
+        return {"success": 0, "failed": 0}
 
-    # Set output directory
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    logger.info(f"Starting screenshot processing from: {input_path} to: {output_path}")
+    logger.debug(f"Starting screenshot processing from: {input_path} to: {output_path}") # Downgraded to debug
 
-    # Get list of image files (PNG and TIFF)
     if input_path.is_file():
-        if input_path.suffix.lower() not in ['.png', '.tiff', '.tif']:
-            logger.error("Error: Input file must be a PNG or TIFF image")
-            return
-        image_files = [input_path]
+        if input_path.suffix.lower() not in ['.png', '.tiff', '.tif', '.pdf']:
+            logger.error("Error: Input file must be a PNG, TIFF, or PDF file")
+            return {"success": 0, "failed": 1}
+        files = [input_path]
     else:
         png_files = list(input_path.glob('**/*.png'))
         tiff_files = list(input_path.glob('**/*.tiff')) + list(input_path.glob('**/*.tif'))
-        image_files = png_files + tiff_files
+        pdf_files = list(input_path.glob('**/*.pdf'))
+        files = png_files + tiff_files + pdf_files
 
-    if not image_files:
-        logger.warning("No PNG or TIFF files found in the specified path. Exiting.")
-        return
+    if not files:
+        logger.warning("No PNG, TIFF, or PDF files found in the specified path. Exiting.")
+        return {"success": 0, "failed": 0}
 
     total_start_time = __import__('time').time()
 
-    # Process files in parallel
-    with Pool(processes=min(cpu_count(), len(image_files))) as pool:
+    with Pool(processes=min(cpu_count(), len(files))) as pool:
         process_func = partial(process_file, output_dir=output_path, use_language_tool=not FAST_MODE)
-        results = pool.map(process_func, [str(f) for f in image_files])
+        results = pool.map(process_func, [str(f) for f in files])
 
-    # Log results
-    for image_file, output_file, process_time in results:
-        logger.info(f"Processed {image_file} -> {output_file} (took {process_time:.2f} seconds)")
-
+    successful_count = 0
+    failed_count = 0
+    for file_path, output_file, process_time in results:
+        if output_file:
+            successful_count += 1
+            logger.debug(f"Processed {Path(file_path).name} in {process_time:.2f} seconds.") # Downgraded to debug
+        else:
+            failed_count += 1
+            logger.warning(f"Failed to process {file_path}. No output file generated.")
+    
     total_time = __import__('time').time() - total_start_time
-    logger.info(f"\nTotal processing time: {total_time:.2f} seconds for {len(image_files)} file(s)")
+
+    if successful_count == 0 and failed_count > 0:
+        logger.warning(f"Datasource processing completed with {successful_count} successes and {failed_count} failures.")
+
+    return {"success": successful_count, "failed": failed_count}
 
 
 # Set Tesseract-OCR path if not in PATH

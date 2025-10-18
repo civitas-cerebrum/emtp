@@ -7,7 +7,7 @@ This module provides access to the different stages of data acquisition:
 """
 
 from .retrieve_url.main import main as retrieve_url_stage
-from .save_screenshot.main import main as save_screenshot_stage
-from .screenshot_processing.main import main as screenshot_processing_stage
- 
-__all__ = ["retrieve_url_stage", "save_screenshot_stage", "screenshot_processing_stage"]
+from .save_datasource.main import main_async as save_datasource_stage
+from .datasource_processing.main import main as datasource_processing_stage
+
+__all__ = ["retrieve_url_stage", "save_datasource_stage", "datasource_processing_stage"]

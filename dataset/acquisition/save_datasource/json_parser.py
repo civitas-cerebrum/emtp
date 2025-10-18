@@ -77,16 +77,51 @@ def is_valid_url(url: str) -> bool:
         return False
 
 
-def extract_urls_from_json_file(file_path: str) -> List[str]:
+def extract_urls_from_json_file(file_path: str) -> List[tuple]:
     """
-    Parse a JSON file and extract all URLs from it.
+    Parse a JSON file and extract all URLs from it, along with PDF detection info.
 
     Args:
         file_path (str): Path to the JSON file.
 
     Returns:
-        List[str]: List of URLs found in the JSON file.
+        List[tuple]: List of (url, is_pdf) tuples found in the JSON file.
     """
     data = parse_json_file(file_path)
-    urls = extract_urls_from_data(data)
-    return list(set(urls))  # Remove duplicates while preserving order
+    url_info = extract_urls_with_pdf_info(data)
+    return list(set(url_info))  # Remove duplicates while preserving order
+
+
+def extract_urls_with_pdf_info(data: Any) -> List[tuple]:
+    """
+    Extract URLs from parsed JSON data with PDF detection based on dorks.
+
+    Args:
+        data: The parsed JSON data (dict, list, or primitive).
+
+    Returns:
+        List[tuple]: List of (url, is_pdf) tuples.
+    """
+    url_info = []
+
+    if isinstance(data, dict):
+        # Check if this dict represents a search result with dorks
+        if 'urls' in data and 'dorks' in data:
+            dorks = data.get('dorks')
+            is_pdf = dorks and isinstance(dorks, str) and dorks.lower().find('filetype:pdf') != -1
+            for url in data['urls']:
+                if isinstance(url, str) and is_valid_url(url):
+                    url_info.append((url, is_pdf))
+        else:
+            # Recursively search other dict structures
+            for key, value in data.items():
+                url_info.extend(extract_urls_with_pdf_info(value))
+    elif isinstance(data, list):
+        for item in data:
+            url_info.extend(extract_urls_with_pdf_info(item))
+    elif isinstance(data, str):
+        # Check if the string is a valid URL (legacy support)
+        if is_valid_url(data):
+            url_info.append((data, False))  # Assume not PDF for legacy format
+
+    return url_info
