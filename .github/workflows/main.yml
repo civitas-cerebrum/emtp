@@ -70,10 +70,13 @@ jobs:
 
     - name: Configure config.ini
       run: |
-        sed -i 's#^base_url = .*$#base_url = ${{ secrets.BASE_URL }}#' config.ini
-        sed -i 's#^model_name = .*$#model_name = ${{ secrets.MODEL }}#' config.ini
-        sed -i 's#^authorization_token = .*$#authorization_token = ${{ secrets.AUTH_TOKEN }}#' config.ini
-        sed -i 's#^dataset_prompt = .*$#dataset_prompt = "${{ vars.DATASET_PROMPT }}"#' config.ini
+        printf "[DEFAULT]\n" > config.ini
+        printf "model_expertise = Quality Assurance\n" >> config.ini
+        printf "input_dir = dataset/acquisition/temp/text_data\n" >> config.ini
+        printf "base_url = ${{ secrets.BASE_URL }}\n" >> config.ini
+        printf "model_name = ${{ secrets.MODEL }}\n" >> config.ini
+        printf "authorization_token = ${{ secrets.AUTH_TOKEN }}\n" >> config.ini
+        printf "dataset_prompt = \"${{ vars.DATASET_PROMPT }}\"\n" >> config.ini
 
     - name: Verify Tesseract Installation
       run: |
