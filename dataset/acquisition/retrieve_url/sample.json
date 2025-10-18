@@ -1,5 +1,8 @@
 {
-  "General Troubleshooting & Problem Solving (All Levels - but increasing complexity)": [
-    "Describe a time you found a critical bug. What was your approach to reporting it?"
+  "Getting Started & Strategy": [
+    "What's the difference between tools like Selenium, Cypress, and Playwright?"
+  ],
+  "Framework & Architecture": [
+    "How do we design a maintainable automation framework?" 
   ]
 }

@@ -106,6 +106,45 @@ class ScreenshotCapture:
             # For compatibility, re-raise as WebDriverException if appropriate, or a custom exception
             raise WebDriverException(f"An unexpected error occurred for URL {url}: {e}") from e
 
+    async def print_to_pdf(self, url: str) -> bytes:
+        """
+        Print the given URL to a PDF file using pydoll.
+
+        Args:
+            url (str): The URL to print to PDF.
+
+        Returns:
+            bytes: The PDF data as bytes.
+
+        Raises:
+            TimeoutException: If the page load or an operation times out.
+            PydollException: For other pydoll-related errors.
+            WebDriverException: For compatibility with existing error handling patterns.
+        """
+        if self.browser is None:
+            await self._setup_driver()
+
+        try:
+            tab = await self.browser.new_tab()
+            await tab.go_to(url, timeout=self.timeout * 1000)
+            
+            # Create a temporary file to save the PDF
+            temp_pdf_path = f"/tmp/pydoll_print_{os.urandom(8).hex()}.pdf"
+            await tab.print_to_pdf(path=temp_pdf_path)
+            
+            with open(temp_pdf_path, "rb") as f:
+                pdf_bytes = f.read()
+            os.remove(temp_pdf_path) # Clean up the temporary file
+
+            await tab.close()
+            return pdf_bytes
+        except TimeoutException as e:
+            raise TimeoutException(f"Page print to PDF timed out for URL: {url} - {e}")
+        except PydollException as e:
+            raise PydollException(f"Pydoll error printing to PDF for URL {url}: {e}")
+        except Exception as e:
+            raise WebDriverException(f"An unexpected error occurred while printing PDF for URL {url}: {e}") from e
+
     async def download_pdf(self, url: str) -> bytes:
         """
         Download a PDF file from the given URL.

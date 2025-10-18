@@ -3,7 +3,6 @@ from PIL import Image
 import os
 import time
 from pathlib import Path
-from .spinner import Spinner
 from .text_cleaner import clean_text
 
 try:
@@ -25,17 +24,18 @@ def process_file(file_path, output_dir=None, use_language_tool=False):
     logger.info(f"Processing {file_path}...")
 
     try:
-        with Spinner():
-            if file_path.suffix.lower() == '.pdf':
-                # Process PDF file
-                if not PDF_SUPPORT:
-                    logger.error(f"PDF processing not available. pypdf library not installed.")
-                    return str(file_path), None, 0.0
+        logger.info("Starting OCR processing...")
+        if file_path.suffix.lower() == '.pdf':
+            # Process PDF file
+            if not PDF_SUPPORT:
+                logger.error(f"PDF processing not available. pypdf library not installed.")
+                return str(file_path), None, 0.0
 
-                text = extract_text_from_pdf(file_path)
-            else:
-                # Process image file (PNG, TIFF, etc.)
-                text = extract_text_from_image(file_path)
+            text = extract_text_from_pdf(file_path)
+        else:
+            # Process image file (PNG, TIFF, etc.)
+            text = extract_text_from_image(file_path)
+        logger.info("OCR processing completed.")
     except Exception as e:
         logger.error(f"Error processing {file_path}: {e}")
         return str(file_path), None, 0.0
@@ -63,11 +63,11 @@ def process_file(file_path, output_dir=None, use_language_tool=False):
 def extract_text_from_image(image_path):
     """Extract text from an image file using OCR."""
     try:
-        logger.info(f"Opening image: {image_path}")
+        logger.debug(f"Opening image: {image_path}")
         image = Image.open(image_path)
         
-        logger.info(f"Image opened. Size: {image.size}, Mode: {image.mode}")
-        logger.info(f"Running Tesseract OCR...")
+        logger.debug(f"Image opened. Size: {image.size}, Mode: {image.mode}")
+        logger.debug(f"Running Tesseract OCR...")
         
         text = pytesseract.image_to_string(
             image,
@@ -75,7 +75,7 @@ def extract_text_from_image(image_path):
             timeout=30
         )
         
-        logger.info(f"OCR completed. Extracted {len(text)} characters")
+        logger.debug(f"OCR completed. Extracted {len(text)} characters")
         return text
     except pytesseract.TesseractNotFoundError:
         logger.error("Tesseract-OCR is not installed or not in your PATH. Please install it.")
