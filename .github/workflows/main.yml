@@ -85,4 +85,4 @@ jobs:
         python -c "import pytesseract; print('pytesseract version:', pytesseract.get_tesseract_version())"
 
     - name: Run EMTP Pipeline
-      run: python main.py --stage full_pipeline --questions-file dataset/acquisition/retrieve_url/sample.json --text-data-output-dir dataset/acquisition/temp/text_data --accurate --dorks "filetype:pdf
+      run: python main.py --stage full_pipeline --questions-file dataset/acquisition/retrieve_url/sample.json --text-data-output-dir dataset/acquisition/temp/text_data --accurate --dorks "filetype:pdf"
