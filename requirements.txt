@@ -17,3 +17,5 @@ language-tool-python>=2.9.4
 pypdf>=4.0.0
 
 requests
+
+yaml
