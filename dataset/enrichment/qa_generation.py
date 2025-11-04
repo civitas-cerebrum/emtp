@@ -4,12 +4,12 @@ import json
 import aiohttp # New import for async HTTP requests
 import asyncio # New import for async operations
 
-async def generate_qna_dataset(prompt="You are an expert in {model_expertise}." ,model_expertise="Software Engineering", input_dir="../acquisition/temp/text_data", base_url="http://localhost:8080/api/generate", model_name="gemma3:27b", authorization_token=None):
+async def generate_qna_dataset(prompt="You are an expert in {model_expertise}." ,model_expertise="Software Engineering", input_dir="dataset/acquisition/temp/datasources", base_url="http://localhost:8080/api/generate", model_name="gemma3:27b", authorization_token=None):
     """
-    Generates a semi-synthetic Q&A dataset from text files in a directory using Ollama.
+    Generates a semi-synthetic Q&A dataset from markdown files in a directory using Ollama.
 
     Args:
-        input_dir (str): The directory containing the text files.  Defaults to "../acquisition/temp/text_data".
+        input_dir (str): The directory containing the markdown files.  Defaults to "dataset/acquisition/temp/datasources".
         base_url (str): The base URL for the Ollama API. Defaults to "http://localhost:11434/api/generate".
         model_name (str): The name of the Ollama model to use. Defaults to "gemma3:27b".
 
@@ -19,15 +19,20 @@ async def generate_qna_dataset(prompt="You are an expert in {model_expertise}." 
     """
 
     qna_dataset = []
-    text_files = [f for f in os.listdir(input_dir) if f.endswith(".txt")]
+    # Recursively find all .md files in the input directory
+    markdown_files = []
+    for root, dirs, files in os.walk(input_dir):
+        for file in files:
+            if file.endswith(".md"):
+                markdown_files.append(os.path.join(root, file))
 
-    if not text_files:
-        print(f"No .txt files found in {input_dir}")
+    if not markdown_files:
+        print(f"No .md files found in {input_dir}")
         return qna_dataset
 
     async with aiohttp.ClientSession() as session: # Use aiohttp for async requests
-        for filename in text_files:
-            filepath = os.path.join(input_dir, filename)
+        for filepath in markdown_files:
+            filename = os.path.basename(filepath)
             try:
                 with open(filepath, "r", encoding="utf-8") as f:
                     document_content = f.read()

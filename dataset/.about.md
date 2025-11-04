@@ -4,6 +4,6 @@ This directory contains all data related to the Expert Model Training Pipeline (
 
 ## Subdirectories:
 
-*   **[`acquisition/`](dataset/acquisition)**: Handles all processes related to acquiring raw data from various sources, including web scraping, API calls, and file ingestion.
+*   **[`acquisition/`](dataset/acquisition)**: Handles all processes related to acquiring raw data from various sources, including web scraping via Firecrawl API, API calls, and file ingestion.
 *   **[`enrichment/`](dataset/enrichment)**: Focuses on transforming, cleaning, and enhancing raw data into a format suitable for model training. This includes feature engineering, data normalization, and annotation.
 *   **[`questions/`](dataset/questions)**: Stores structured questions or prompts used for data acquisition or model evaluation. This might include QA datasets, interview questions, or specific queries used to extract information.

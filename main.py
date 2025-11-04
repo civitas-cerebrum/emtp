@@ -62,12 +62,12 @@ def run_datasource_processing(input_dir='dataset/acquisition/temp/datasources', 
     datasource_processing_stage(input_dir, output_dir, verbose=verbose, accurate=accurate) # Positional arguments
     print(f"✅ Datasource processing completed! Text data saved to {output_dir}")
 
-async def run_semi_sythetic_data_generation(input_dir='dataset/acquisition/temp/text_data'):
+async def run_semi_sythetic_data_generation(input_dir='dataset/acquisition/temp/datasources'):
     """Run Q&A generation stage."""
     print(f"🤖 Starting semi-sythetic data generation...")
     ensure_dir(input_dir)
     await qa_generation(input_dir) # qa_generation is now async
-    print(f"✅ Semi-synthetic data generation completed based on text data from {input_dir}")
+    print(f"✅ Semi-synthetic data generation completed based on markdown data from {input_dir}")
 
 def get_user_choice():
     """Get user's choice for which stage to run."""
@@ -76,8 +76,8 @@ def get_user_choice():
     print("="*50)
     print("Choose a stage to run:")
     print("1. URL Retrieval (from questions to URLs)")
-    print("2. Datasource Capture (from URLs to data sources)")
-    print("3. Datasource Processing (from data sources to text)")
+    print("2. Datasource Capture (from URLs to markdown data sources)")
+    print("3. Q&A Generation (from markdown data sources to Q&A dataset)")
     print("4. Run Full Pipeline (all stages)")
     print("5. Exit")
     print("="*50)
@@ -110,7 +110,7 @@ def get_log_level_input():
 async def main():
     """Main interactive loop or direct execution via arguments."""
     parser = argparse.ArgumentParser(description="EMTP Data Acquisition Pipeline")
-    parser.add_argument('--stage', type=str, choices=['url_retrieval', 'datasource_capture', 'datasource_processing', 'full_pipeline'],
+    parser.add_argument('--stage', type=str, choices=['url_retrieval', 'datasource_capture', 'qa_generation', 'full_pipeline'],
                         help='Specify the pipeline stage to run directly (non-interactive mode).')
     parser.add_argument('--questions-file', type=str, default='sample.json',
                         help='Path to the questions JSON file.')
@@ -141,18 +141,17 @@ async def main():
             run_url_retrieval(args.questions_file, args.urls_output_dir, verbose=verbose_logging, dorks=args.dorks)
         elif args.stage == 'datasource_capture':
             await run_datasource_capture(args.urls_output_dir, args.datasources_output_dir, verbose=verbose_logging)
-        elif args.stage == 'datasource_processing':
-            run_datasource_processing(args.datasources_output_dir, args.text_data_output_dir, verbose=verbose_logging, accurate=args.accurate)
+        elif args.stage == 'qa_generation':
+            await run_semi_sythetic_data_generation(args.datasources_output_dir)
         elif args.stage == 'full_pipeline':
             print("Running full pipeline...")
             run_url_retrieval(args.questions_file, args.urls_output_dir, verbose=verbose_logging, dorks=args.dorks)
             await run_datasource_capture(args.urls_output_dir, args.datasources_output_dir, verbose=verbose_logging)
-            run_datasource_processing(args.datasources_output_dir, args.text_data_output_dir, verbose=verbose_logging, accurate=args.accurate)
-            await run_semi_sythetic_data_generation() # Await this call
+            await run_semi_sythetic_data_generation(args.datasources_output_dir) # Skip processing, read markdown directly
             print("🎉 Full pipeline completed!")
             print(f"Intermediate URLs saved to: {args.urls_output_dir}")
             print(f"Intermediate data sources saved to: {args.datasources_output_dir}")
-            print(f"Final text data saved to: {args.text_data_output_dir}")
+            print(f"Q&A dataset generated from markdown files in: {args.datasources_output_dir}")
     else:
         # Interactive mode
         print("Welcome to EMTP Data Acquisition Pipeline!")
@@ -179,17 +178,15 @@ async def main():
                 await run_datasource_capture(input_dir, output_dir, verbose=verbose_logging)
 
             elif choice == '3':
-                # Datasource Processing
-                input_dir = get_path_input("Input directory with data sources", "dataset/acquisition/temp/datasources")
-                output_dir = get_path_input("Output directory for text data", "dataset/acquisition/temp/text_data")
-                run_datasource_processing(input_dir, output_dir, verbose=verbose_logging, accurate=True) # Automatically use accurate mode
+                # Q&A Generation
+                input_dir = get_path_input("Input directory with markdown data sources", "dataset/acquisition/temp/datasources")
+                await run_semi_sythetic_data_generation(input_dir)
             elif choice == '4':
                 # Full Pipeline
                 print("Running full pipeline...")
 
-                # Get input and final output paths
+                # Get input path
                 questions_file = get_path_input("Questions file path", "sample.json")
-                final_text_output = get_path_input("Final output directory for text data", "dataset/acquisition/temp/text_data")
 
                 # Use temp directories for intermediate data
                 urls_temp = "dataset/acquisition/temp/urls"
@@ -201,13 +198,13 @@ async def main():
                 # Run datasource capture
                 await run_datasource_capture(urls_temp, datasources_temp, verbose=verbose_logging)
 
-                # Run datasource processing
-                run_datasource_processing(datasources_temp, final_text_output, verbose=verbose_logging, accurate=True) # Automatically use accurate mode
+                # Skip datasource processing, run Q&A generation directly on markdown files
+                await run_semi_sythetic_data_generation(datasources_temp)
 
                 print("🎉 Full pipeline completed!")
                 print(f"Intermediate URLs saved to: {urls_temp}")
                 print(f"Intermediate data sources saved to: {datasources_temp}")
-                print(f"Final text data saved to: {final_text_output}")
+                print(f"Q&A dataset generated from markdown files in: {datasources_temp}")
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -3,9 +3,7 @@ import sys
 from pathlib import Path
 from multiprocessing import Pool, cpu_count
 from functools import partial
-import pytesseract
-import shutil
-from .ocr_processor import process_file
+from .text_processor import process_file
 from .text_cleaner import init_language_tool, FAST_MODE
 
 
@@ -16,17 +14,16 @@ import sys # Import sys for StreamHandler
 logger = logging.getLogger(__name__)
 
 # Reduce verbosity of third-party libraries
-logging.getLogger('PIL').setLevel(logging.WARNING)
 logging.getLogger('multiprocessing').setLevel(logging.WARNING)
 logging.getLogger('language_tool_python').setLevel(logging.WARNING)
 
 
 def main(input_dir: str, output_dir: str, accurate: bool = False, verbose: bool = False):
     """
-    Main function for the OCR tool to extract text from images.
+    Main function for the text extraction tool to process markdown files.
 
     Args:
-        input_dir (str): Input directory containing PNG/TIFF files.
+        input_dir (str): Input directory containing markdown files.
         output_dir (str): Output directory for text files.
         accurate (bool): Use more accurate but slower processing.
         verbose (bool): Enable verbose logging.
@@ -52,22 +49,20 @@ def main(input_dir: str, output_dir: str, accurate: bool = False, verbose: bool 
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    logger.info(f"Starting screenshot processing from: {input_path} to: {output_path}")
+    logger.info(f"Starting markdown processing from: {input_path} to: {output_path}")
 
-    # Get list of files (PNG, TIFF, and PDF)
+    # Get list of files (Markdown files)
     if input_path.is_file():
-        if input_path.suffix.lower() not in ['.png', '.tiff', '.tif', '.pdf']:
-            logger.error("Error: Input file must be a PNG, TIFF, or PDF file")
+        if input_path.suffix.lower() != '.md':
+            logger.error("Error: Input file must be a Markdown (.md) file")
             return
         files = [input_path]
     else:
-        png_files = list(input_path.glob('**/*.png'))
-        tiff_files = list(input_path.glob('**/*.tiff')) + list(input_path.glob('**/*.tif'))
-        pdf_files = list(input_path.glob('**/*.pdf'))
-        files = png_files + tiff_files + pdf_files
+        md_files = list(input_path.glob('**/*.md'))
+        files = md_files
 
     if not files:
-        logger.warning("No PNG, TIFF, or PDF files found in the specified path. Exiting.")
+        logger.warning("No Markdown (.md) files found in the specified path. Exiting.")
         return
 
     total_start_time = __import__('time').time()
@@ -95,21 +90,11 @@ def main(input_dir: str, output_dir: str, accurate: bool = False, verbose: bool 
     return successful_results
 
 
-# Set Tesseract-OCR path if not in PATH
-if shutil.which("tesseract") is None:
-    TESSERACT_PATH = '/usr/bin/tesseract'
-    if Path(TESSERACT_PATH).exists():
-        pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
-    else:
-        logger.error("Tesseract-OCR is not found. Please install it or specify its path.")
-        logger.error("  On Debian/Ubuntu: sudo apt-get install tesseract-ocr")
-        logger.error("  On macOS: brew install tesseract")
-        logger.error("  On Windows: Install from https://tesseract-ocr.github.io/tessdoc/Downloads.html and add to PATH.")
-        sys.exit(1)
+# No OCR dependencies needed for markdown processing
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='OCR tool to extract text from images')
-    parser.add_argument('input', help='Input image file or directory containing PNG/TIFF files')
+    parser = argparse.ArgumentParser(description='Text extraction tool to process markdown files')
+    parser.add_argument('input', help='Input markdown file or directory containing .md files')
     parser.add_argument('-o', '--output', help='Output directory for text files (default: same as input)')
     parser.add_argument('--accurate', action='store_true', help='Use more accurate but slower processing')
     parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose logging')
