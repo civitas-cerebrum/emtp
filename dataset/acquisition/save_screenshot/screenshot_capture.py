@@ -45,11 +45,6 @@ class ScreenshotCapture:
         chrome_options.add_argument("--disable-infobars")
         chrome_options.add_argument("--disable-cookies")
         chrome_options.add_argument("--disable-notifications")
-        chrome_options.add_argument("--test-third-party-cookie-phaseout")
-        chrome_options.add_argument("--deny-permission-prompts")
-        chrome_options.add_argument("--host-resolver-rules='MAP *cookielaw.org 0.0.0.0'")
-        chrome_options.add_experimental_option("prefs", {"profile.cookie_controls_mode": 1})
-        chrome_options.add_experimental_option("prefs", {"profile.default_content_setting_values.cookies": 2})
         
         # Install and use ChromeDriver
         self.driver = webdriver.Chrome(options=chrome_options)
@@ -84,6 +79,8 @@ class ScreenshotCapture:
             # Optional: Add a short, minimal sleep for dynamic content to settle
             time.sleep(0.5)
 
+            original_size = self.driver.get_window_size()
+
             # Get the full page height
             total_height = self.driver.execute_script(
                 "return Math.max(document.body.scrollHeight, document.body.offsetHeight, "
@@ -92,10 +89,10 @@ class ScreenshotCapture:
             )
 
             try:
-                script = 'const elementsToRemove = document.querySelectorAll(\'[id*="cookie"], [class*="fc-consent-root"], [class*="overlay"], [class*="ot-fade-in"],[id*="consent"], [class*="consent"]\'); elementsToRemove.forEach(element => {element.remove();});'
+                script = 'const elementsToRemove = document.querySelectorAll(\'[id*="cookie"], [class*="fc-consent-root"], [role="dialog"], #snigel-cmp-framework, .fc-consent-root, .qc-cmp2-container, [class*="overlay"], [class*="ot-fade-in"],[id*="consent"], [class*="consent"]\'); elementsToRemove.forEach(element => {element.remove();});'
 
                 self.driver.execute_script(script)
-                print("Google cookie popup removed!")
+                print("Cookie popup removed!")
 
             except Exception as ignored:
                 print("No google cookie popup!")
@@ -105,6 +102,8 @@ class ScreenshotCapture:
 
             # Take screenshot
             screenshot = self.driver.get_screenshot_as_png()
+
+            self.driver.set_window_size(original_size['width'], original_size['height'])
 
             return screenshot
 
