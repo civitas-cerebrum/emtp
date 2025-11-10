@@ -1,15 +1,15 @@
-# Screenshot Capture Module
+# Web Content Scraper Module
 
-Captures full-page screenshots of URLs from JSON files using Selenium WebDriver.
+Scrapes web content from URLs using a self-hosted Firecrawl API and saves it as markdown files.
 
 ## Features
 
-- **Full-Page Screenshots**: Captures complete webpage content
-- **Headless Chrome**: Fast, automated screenshot capture
-- **PNG Format**: High-quality image output
-- **Recursive Processing**: Finds JSON files in subdirectories
-- **URL Extraction**: Automatically extracts URLs from JSON structures
-- **Error Handling**: Robust processing with detailed logging
+- **Firecrawl Integration**: Leverages a self-hosted Firecrawl instance for efficient web content scraping.
+- **Markdown Output**: Converts web pages into clean, readable markdown format.
+- **Batch Processing**: Processes multiple URLs concurrently for improved performance.
+- **Recursive Processing**: Finds JSON files containing URLs in subdirectories.
+- **URL Extraction**: Automatically extracts URLs from diverse JSON structures.
+- **Robust Error Handling**: Provides detailed logging for successful and failed scrapes.
 
 ## Usage
 
@@ -19,38 +19,35 @@ python main.py <input_dir> <output_dir> [options]
 
 ### Arguments
 
-- `input_dir`: Directory containing JSON files with URLs
-- `output_dir`: Directory where screenshots will be saved
+- `input_dir`: Directory containing JSON files with URLs.
+- `output_dir`: Directory where scraped markdown content will be saved.
 
 ### Options
 
-- `--timeout SECONDS`: Page load timeout (default: 30)
-- `--verbose, -v`: Enable verbose logging
-- `--headless`: Run browser in headless mode (default: True)
-- `--no-headless`: Run browser in non-headless mode
+- `--verbose, -v`: Enable verbose logging.
 
 ## Input Format
 
-JSON files containing URLs in any structure:
+JSON files containing URLs in any structure (e.g., from the URL Retrieval stage):
 
 ```json
 {
-  "urls": ["https://example.com"],
-  "metadata": {"source": "https://another.com"}
+  "urls": ["https://example.com", "https://another.com/page.html"],
+  "metadata": {"source": "some_source"}
 }
 ```
 
 ## Output
 
-Screenshots saved as PNG files in a mirrored directory structure.
+Markdown files (`.md`) saved in the specified output directory, mirroring the input JSON file structure.
 
 ## Dependencies
 
-- selenium
-- Pillow
-- webdriver-manager
+- `requests`: For making HTTP requests to the Firecrawl API.
+- `json_parser`: Custom module for extracting URLs from JSON.
+- `file_finder`: Custom module for finding JSON files.
 
 ## Requirements
 
 - Python 3.7+
-- Google Chrome browser
+- A running instance of the self-hosted Firecrawl API (e.g., on `localhost:3002`).

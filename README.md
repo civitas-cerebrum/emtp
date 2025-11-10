@@ -1,16 +1,16 @@
 # EMTP - Expert Model Training Pipeline
 
-EMTP is a comprehensive pipeline for acquiring, processing, and preparing data for training expert AI models. The pipeline focuses on quality assurance (QA) related content, systematically collecting questions, retrieving relevant URLs using DuckDuckGo search with optional dorks support, and capturing webpage screenshots or downloading PDFs.
+EMTP is a comprehensive pipeline for acquiring, processing, and preparing data for training expert AI models. The pipeline focuses on quality assurance (QA) related content, systematically collecting questions, retrieving relevant URLs using DuckDuckGo search with optional dorks support, and scraping web content directly into markdown format using a self-hosted Firecrawl API.
 
 ## Key Features
 
 - **Interactive Pipeline**: Choose individual stages or run the full pipeline with custom paths
 - **DuckDuckGo Search with Dorks**: Uses DuckDuckGo for URL retrieval with optional search operators (privacy-focused, no Google)
-- **PDF Support**: Automatic detection and downloading of PDF files when using `filetype:pdf` dorks
+- **Firecrawl Integration**: Self-hosted Firecrawl API for direct web content scraping into markdown format
+- **Simplified Pipeline**: Direct markdown output eliminates need for OCR processing in the main pipeline
 - **Unicode Handling**: Automatically processes and normalizes Unicode characters in questions
 - **Temp Directory Management**: Uses organized temp directories for intermediate data storage
 - **Modular Architecture**: Clean separation of acquisition, enrichment, and training stages
-- **Multi-format Processing**: Efficiently handles both crawled webpages (HTML/Markdown) and PDF documents
 
 ## Project Structure
 
@@ -30,8 +30,7 @@ emtp/
 │   │   │   ├── datasources/ # Stores captured web page screenshots and downloaded PDFs
 │   │   │   └── text_data/    # Stores extracted text data from screenshots and PDFs
 │   │   ├── retrieve_url/   # Python module dedicated to retrieving URLs based on QA questions
-│   │   ├── save_datasource/ # Python module dedicated to web crawling using Firecrawl API and downloading PDFs from URLs
-│   │   └── datasource_processing/ # Python module for OCR and text extraction from data sources
+│   │   └── save_datasource/ # Python module dedicated to web scraping using self-hosted Firecrawl API
 │   ├── enrichment/         # Contains data enrichment and Q&A generation modules
 │   └── questions/          # Stores question datasets and related files
 └── training/               # Placeholder for future model training components and scripts
@@ -59,7 +58,7 @@ emtp/
 You can also run the pipeline directly using command-line arguments, which is useful for automation or scripting. Use the `--stage` argument to specify which part of the pipeline to run.
 
 ```bash
-python main.py --stage full_pipeline --questions-file dataset/acquisition/retrieve_url/sample.json --text-data-output-dir dataset/acquisition/temp/text_data --accurate --verbose --dorks "filetype:pdf"
+python main.py --stage full_pipeline --questions-file dataset/acquisition/retrieve_url/sample.json --verbose --dorks "filetype:pdf"
 ```
 
 ## Pipeline Stages
@@ -71,15 +70,13 @@ python main.py --stage full_pipeline --questions-file dataset/acquisition/retrie
 
 ### 2. Datasource Capture (`dataset/acquisition/save_datasource/`)
 - Reads URLs from `dataset/acquisition/temp/urls/`
-- Leverages the Firecrawl API to scrape and convert web content (HTML/Markdown) from specified URLs
-- Downloads PDF files directly when dorks indicate PDF content
-- Saves scraped web content (as HTML/Markdown) and PDF files to `dataset/acquisition/temp/datasources/`
+- Uses self-hosted Firecrawl API to scrape web content directly into markdown format
+- Saves markdown files to `dataset/acquisition/temp/datasources/`
 
-### 3. Datasource Processing (`dataset/acquisition/datasource_processing/`)
-- Reads PNG images and PDF files from `dataset/acquisition/temp/datasources/` (recursively through subdirectories)
-- Performs OCR to extract text from images and direct text extraction from PDFs
-- Cleans and processes the extracted text. Can use `--accurate` flag for more robust cleaning.
-- Saves text data to `dataset/acquisition/temp/text_data/`
+### 3. Q&A Generation (`dataset/enrichment/qa_generation.py`)
+- Processes markdown files from `dataset/acquisition/temp/datasources/`
+- Generates Q&A pairs for model training
+- Note: Datasource processing (OCR/PDF text extraction) is skipped in the full pipeline since Firecrawl provides clean markdown output
 
 ## Data Flow
 
@@ -89,18 +86,16 @@ graph TD
     B --> C{dataset/acquisition/temp/urls/};
     C --> D(Firecrawl Web Scraping);
     D --> E{dataset/acquisition/temp/datasources/};
-    E --> F(Datasource Processing);
-    F --> G{dataset/acquisition/temp/text_data/};
+    E --> F(Q&A Generation);
 
-    D --> H[PDF Download];
-    H --> E;
+    F --> G{qna.json};
 ```
 
 ## Requirements
 
 - Python 3.8+
 - Internet connection for web scraping and searches
-- Firecrawl API key (if using the hosted Firecrawl API)
+- Self-hosted Firecrawl instance running (default: localhost:3002)
 
 ## Individual Stage Execution
 
@@ -111,10 +106,10 @@ You can run individual stages through the interactive menu in `main.py`, or dire
 python main.py --stage url_retrieval --questions-file dataset/acquisition/retrieve_url/sample.json --urls-output-dir custom/output --dorks "filetype:pdf site:stackoverflow.com"
 
 # Non-interactive Datasource capture only
-python main.py --stage datasource_capture --urls-output-dir custom/input --datasources-output-dir custom/output --firecrawl-api-key YOUR_FIRECRAWL_API_KEY
+python main.py --stage datasource_capture --urls-output-dir custom/input --datasources-output-dir custom/output
 
-# Non-interactive Datasource processing only (with accurate mode)
-python main.py --stage datasource_processing --datasources-output-dir custom/input --text-data-output-dir custom/output --accurate
+# Non-interactive Q&A generation only
+python main.py --stage qa_generation --datasources-output-dir custom/input
 ```
 
 ## Configuration
@@ -125,14 +120,14 @@ python main.py --stage datasource_processing --datasources-output-dir custom/inp
 ## Dependencies
 
 - `ddgs`: DuckDuckGo search API
-- `firecrawl-py`: Firecrawl API client for web scraping
-- `Pillow`: Image processing for screenshots
-- `pypdf`: PDF text extraction and processing
-- `pytesseract`: OCR (Optical Character Recognition) for images
+- `requests`: HTTP requests for Firecrawl API communication
+- `json_parser`: Custom module for extracting URLs from JSON
+- `file_finder`: Custom module for finding JSON files
 
 ## Notes
 
 - All paths are resolved relative to project root
 - Unicode characters in questions are automatically normalized
 - Temporary directories are created automatically
-- Screenshots are saved as PNG files with timestamps
+- Web content is scraped directly into markdown format using self-hosted Firecrawl
+- The full pipeline skips OCR processing since Firecrawl provides clean markdown output

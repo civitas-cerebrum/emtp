@@ -11,7 +11,8 @@ import sys
 import argparse
 import asyncio # Import asyncio for asynchronous operations
 import logging
-from dataset.acquisition import retrieve_url_stage, save_datasource_stage, datasource_processing_stage
+import json
+from dataset.acquisition import retrieve_url_stage, save_datasource_stage
 from dataset.enrichment import qa_generation
 
 # Reduce verbosity of third-party libraries globally
@@ -30,6 +31,64 @@ logging.getLogger('pydoll.browser').setLevel(logging.CRITICAL)
 def ensure_dir(path):
     """Ensure directory exists."""
     os.makedirs(path, exist_ok=True)
+
+
+def print_pipeline_report(urls_dir, datasources_dir, qa_file='qna_dataset.json'):
+    """Print a simple ASCII report of pipeline results."""
+    try:
+        # Count URLs
+        urls_count = 0
+        if os.path.exists(urls_dir):
+            for file in os.listdir(urls_dir):
+                if file.endswith('.json'):
+                    file_path = os.path.join(urls_dir, file)
+                    try:
+                        with open(file_path, 'r') as f:
+                            data = json.load(f)
+                            # Handle different JSON structures
+                            if isinstance(data, list):
+                                # Array of objects, each with 'urls' field
+                                for item in data:
+                                    if isinstance(item, dict) and 'urls' in item:
+                                        urls_count += len(item['urls'])
+                            elif isinstance(data, dict) and 'urls' in data:
+                                # Single object with 'urls' field
+                                urls_count += len(data['urls'])
+                            elif isinstance(data, list) and all(isinstance(url, str) for url in data):
+                                # Simple array of URLs
+                                urls_count += len(data)
+                    except:
+                        pass
+
+        # Count markdown files
+        markdown_count = 0
+        if os.path.exists(datasources_dir):
+            for root, dirs, files in os.walk(datasources_dir):
+                markdown_count += len([f for f in files if f.endswith('.md')])
+
+        # Count Q&A pairs
+        qa_count = 0
+        if os.path.exists(qa_file):
+            try:
+                with open(qa_file, 'r') as f:
+                    qa_data = json.load(f)
+                    qa_count = len(qa_data) if isinstance(qa_data, list) else 0
+            except:
+                pass
+
+        # Print ASCII report
+        print("\n" + "="*60)
+        print("                    EMTP PIPELINE REPORT")
+        print("="*60)
+        print(f"  📊 URLs Retrieved:     {urls_count}")
+        print(f"  📄 Markdown Files:     {markdown_count}")
+        print(f"  ❓ Q&A Pairs Generated: {qa_count}")
+        print("="*60)
+        print("  ✅ Pipeline completed successfully!")
+        print("="*60)
+
+    except Exception as e:
+        print(f"Note: Could not generate detailed report ({e})")
 
 def run_url_retrieval(questions_file='sample.json', output_dir='dataset/acquisition/temp/urls', verbose: bool = False, dorks: str = None):
     """Run URL retrieval stage."""
@@ -118,10 +177,6 @@ async def main():
                         help='Output directory for URLs.')
     parser.add_argument('--datasources-output-dir', type=str, default='dataset/acquisition/temp/datasources',
                         help='Output directory for data sources.')
-    parser.add_argument('--text-data-output-dir', type=str, default='dataset/acquisition/temp/text_data',
-                        help='Output directory for text data.')
-    parser.add_argument('--accurate', action='store_true',
-                        help='Use more accurate (slower) processing for screenshot processing.')
     parser.add_argument('--verbose', '-v', action='store_true',
                         help='Enable verbose logging.')
     parser.add_argument('--log-level', type=str, default='INFO',
@@ -152,6 +207,7 @@ async def main():
             print(f"Intermediate URLs saved to: {args.urls_output_dir}")
             print(f"Intermediate data sources saved to: {args.datasources_output_dir}")
             print(f"Q&A dataset generated from markdown files in: {args.datasources_output_dir}")
+            print_pipeline_report(args.urls_output_dir, args.datasources_output_dir)
     else:
         # Interactive mode
         print("Welcome to EMTP Data Acquisition Pipeline!")
@@ -205,6 +261,7 @@ async def main():
                 print(f"Intermediate URLs saved to: {urls_temp}")
                 print(f"Intermediate data sources saved to: {datasources_temp}")
                 print(f"Q&A dataset generated from markdown files in: {datasources_temp}")
+                print_pipeline_report(urls_temp, datasources_temp)
 
 if __name__ == "__main__":
     asyncio.run(main())
