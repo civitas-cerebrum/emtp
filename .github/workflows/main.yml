@@ -17,21 +17,6 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Install Tesseract OCR
-      run: |
-        sudo apt-get install -y tesseract-ocr
-        sudo apt-get install -y autoconf automake libtool
-        sudo apt-get install -y pkg-config
-        sudo apt-get install -y libpng-dev
-        sudo apt-get install -y libjpeg8-dev
-        sudo apt-get install -y libtiff5-dev
-        sudo apt-get install -y zlib1g-dev
-        sudo apt-get install -y libwebpdemux2 libwebp-dev
-        sudo apt-get install -y libopenjp2-7-dev
-        sudo apt-get install -y libgif-dev
-        sudo apt-get install -y libarchive-dev libcurl4-openssl-dev
-        sudo apt-get install -y g++ clang
-
     - name: Run Trivy vulnerability scanner in repo mode
       uses: aquasecurity/trivy-action@0.28.0
       with:
@@ -68,18 +53,20 @@ jobs:
         sarif_file: 'semgrep.sarif'
 
 
-    - name: Configure config.ini
+    - name: Generate config.ini with secrets
       run: |
-        sed -i 's#^base_url = .*$#base_url = ${{ secrets.BASE_URL }}#' config.ini
-        sed -i 's#^model_name = .*$#model_name = ${{ secrets.MODEL }}#' config.ini
-        sed -i 's#^authorization_token = .*$#authorization_token = ${{ secrets.AUTH_TOKEN }}#' config.ini
-        sed -i 's#^dataset_prompt = .*$#dataset_prompt = "${{ vars.DATASET_PROMPT }}"#' config.ini
-
-    - name: Verify Tesseract Installation
-      run: |
-        tesseract --version
-        tesseract --list-langs
-        python -c "import pytesseract; print('pytesseract version:', pytesseract.get_tesseract_version())"
+        cat > config.ini << EOF
+        [DEFAULT]
+        model_expertise = Quality Assurance
+        input_dir = dataset/acquisition/temp/datasources
+        base_url = ${{ secrets.BASE_URL }}
+        model_name = ${{ secrets.MODEL }}
+        authorization_token = ${{ secrets.AUTH_TOKEN }}
+        dataset_prompt = "${{ vars.DATASET_PROMPT }}"
+        firecrawl_url = ${{ secrets.FIRECRAWL_URL }}
+        firecrawl_user = ${{ secrets.FIRECRAWL_USER }}
+        firecrawl_pass = ${{ secrets.FIRECRAWL_PASS }}
+        EOF
 
     - name: Run EMTP Pipeline
-      run: python main.py --stage full_pipeline --questions-file dataset/acquisition/retrieve_url/sample.json --text-data-output-dir dataset/acquisition/temp/text_data --accurate --verbose
+      run: python main.py --stage full_pipeline --questions-file dataset/acquisition/retrieve_url/sample.json --verbose
