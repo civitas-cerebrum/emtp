@@ -55,7 +55,7 @@ jobs:
 
     - name: Generate config.ini with secrets
       run: |
-        # Export secrets as environment variables to handle missing ones
+        # Export secrets as environment variables
         export BASE_URL="${{ secrets.BASE_URL }}"
         export MODEL="${{ secrets.MODEL }}"
         export AUTH_TOKEN="${{ secrets.AUTH_TOKEN }}"
@@ -64,17 +64,17 @@ jobs:
         export FIRECRAWL_USER="${{ secrets.FIRECRAWL_USER }}"
         export FIRECRAWL_PASS="${{ secrets.FIRECRAWL_PASS }}"
 
-        cat > config.ini << 'EOF'
+        cat > config.ini << EOF
         [DEFAULT]
         model_expertise = Quality Assurance
         input_dir = dataset/acquisition/temp/datasources
-        base_url = '"${BASE_URL}"'
-        model_name = '"${MODEL}"'
-        authorization_token = '"${AUTH_TOKEN}"'
-        dataset_prompt = "${DATASET_PROMPT}"
-        firecrawl_url = '"${FIRECRAWL_URL}"'
-        firecrawl_user = '"${FIRECRAWL_USER}"'
-        firecrawl_pass = '"${FIRECRAWL_PASS}"'
+        base_url = ${BASE_URL}
+        model_name = ${MODEL}
+        authorization_token = ${AUTH_TOKEN}
+        dataset_prompt = ${DATASET_PROMPT}
+        firecrawl_url = ${FIRECRAWL_URL}
+        firecrawl_user = ${FIRECRAWL_USER}
+        firecrawl_pass = ${FIRECRAWL_PASS}
         EOF
 
         echo "Generated config.ini:"
