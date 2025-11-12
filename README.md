@@ -1,12 +1,12 @@
 # EMTP - Expert Model Training Pipeline
 
-EMTP is a comprehensive pipeline for acquiring, processing, and preparing data for training expert AI models. The pipeline focuses on quality assurance (QA) related content, systematically collecting questions, retrieving relevant URLs using DuckDuckGo search with optional dorks support, and scraping web content directly into markdown format using a self-hosted Firecrawl API.
+EMTP is a comprehensive pipeline for acquiring, processing, and preparing data for training expert AI models. The pipeline focuses on quality assurance (QA) related content, systematically collecting questions, retrieving relevant URLs using DuckDuckGo search with optional dorks support, and scraping web content directly into markdown format using Firecrawl API (supports both local and external instances).
 
 ## Key Features
 
 - **Interactive Pipeline**: Choose individual stages or run the full pipeline with custom paths
 - **DuckDuckGo Search with Dorks**: Uses DuckDuckGo for URL retrieval with optional search operators (privacy-focused, no Google)
-- **Firecrawl Integration**: Self-hosted Firecrawl API for direct web content scraping into markdown format
+- **Firecrawl Integration**: Firecrawl API for direct web content scraping into markdown format (supports local and external instances)
 - **Simplified Pipeline**: Direct markdown output eliminates need for OCR processing in the main pipeline
 - **Unicode Handling**: Automatically processes and normalizes Unicode characters in questions
 - **Temp Directory Management**: Uses organized temp directories for intermediate data storage
@@ -30,7 +30,7 @@ emtp/
 │   │   │   ├── datasources/ # Stores captured web page screenshots and downloaded PDFs
 │   │   │   └── text_data/    # Stores extracted text data from screenshots and PDFs
 │   │   ├── retrieve_url/   # Python module dedicated to retrieving URLs based on QA questions
-│   │   └── save_datasource/ # Python module dedicated to web scraping using self-hosted Firecrawl API
+│   │   └── save_datasource/ # Python module dedicated to web scraping using Firecrawl API
 │   ├── enrichment/         # Contains data enrichment and Q&A generation modules
 │   └── questions/          # Stores question datasets and related files
 └── training/               # Placeholder for future model training components and scripts
@@ -70,7 +70,7 @@ python main.py --stage full_pipeline --questions-file dataset/acquisition/retrie
 
 ### 2. Datasource Capture (`dataset/acquisition/save_datasource/`)
 - Reads URLs from `dataset/acquisition/temp/urls/`
-- Uses self-hosted Firecrawl API to scrape web content directly into markdown format
+- Uses Firecrawl API to scrape web content directly into markdown format (supports local and external instances)
 - Saves markdown files to `dataset/acquisition/temp/datasources/`
 
 ### 3. Q&A Generation (`dataset/enrichment/qa_generation.py`)
@@ -95,7 +95,7 @@ graph TD
 
 - Python 3.8+
 - Internet connection for web scraping and searches
-- Self-hosted Firecrawl instance running (default: localhost:3002)
+- Firecrawl instance running (local or external, configurable via config.ini)
 
 ## Individual Stage Execution
 
@@ -115,7 +115,11 @@ python main.py --stage qa_generation --datasources-output-dir custom/input
 ## Configuration
 
 - Modify `dataset/acquisition/retrieve_url/sample.json` or create a new JSON file to change the source questions.
-- Configure screenshot settings in `save_screenshot/main.py`
+- Configure Firecrawl settings in `config.ini`:
+  - `firecrawl_url`: URL of the Firecrawl instance (default: http://localhost:3002)
+  - `firecrawl_user`: Username for external Firecrawl instances (leave empty for local)
+  - `firecrawl_pass`: Password for external Firecrawl instances (leave empty for local)
+- Use `--force-local` flag with datasource capture to override config and use localhost:3002
 
 ## Dependencies
 
@@ -129,5 +133,5 @@ python main.py --stage qa_generation --datasources-output-dir custom/input
 - All paths are resolved relative to project root
 - Unicode characters in questions are automatically normalized
 - Temporary directories are created automatically
-- Web content is scraped directly into markdown format using self-hosted Firecrawl
+- Web content is scraped directly into markdown format using Firecrawl (configurable for local or external instances)
 - The full pipeline skips OCR processing since Firecrawl provides clean markdown output

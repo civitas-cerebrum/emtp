@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """
-Webpage Scraper - Scrape content from URLs using self-hosted Firecrawl API.
+Webpage Scraper - Scrape content from URLs using Firecrawl API.
 
 This script reads JSON files from an input directory, extracts URLs,
-scrapes each URL using self-hosted Firecrawl API (localhost:3002), and saves content as markdown files.
-No API key required since authentication is disabled in self-hosted setup.
+scrapes each URL using Firecrawl API, and saves content as markdown files.
+Supports both local self-hosted instances and external instances with basic auth.
 """
 
 import argparse
 import os
 import sys
 import logging
+import configparser
 from pathlib import Path
 from typing import List
 import asyncio
@@ -73,35 +74,43 @@ def create_safe_filename(url: str) -> str:
     return filename or "content"
 
 
-async def scrape_urls_batch(urls: List[str], api_key: str = None) -> dict:
+async def scrape_urls_batch(urls: List[str], base_url: str = "http://localhost:3002", firecrawl_user: str = None, firecrawl_pass: str = None) -> dict:
     """
-    Scrape multiple URLs using self-hosted Firecrawl API.
+    Scrape multiple URLs using Firecrawl API.
 
     Args:
         urls (List[str]): List of URLs to scrape.
-        api_key (str): Not used in self-hosted setup (authentication disabled).
+        base_url (str): Base URL of the Firecrawl instance.
+        firecrawl_user (str): Username for authentication (optional).
+        firecrawl_pass (str): Password for authentication (optional).
 
     Returns:
         dict: Batch scraping results with success/failure counts and data.
     """
-    base_url = "http://localhost:3002"
     successful_results = []
     failed_count = 0
 
-    logger.info(f"Starting batch scrape of {len(urls)} URLs using self-hosted Firecrawl...")
+    logger.info(f"Starting batch scrape of {len(urls)} URLs using Firecrawl at {base_url}...")
+
+    # Prepare headers
+    headers = {"Content-Type": "application/json"}
+    if firecrawl_user and firecrawl_pass:
+        import base64
+        auth_string = f"{firecrawl_user}:{firecrawl_pass}"
+        encoded_auth = base64.b64encode(auth_string.encode()).decode()
+        headers["Authorization"] = f"Basic {encoded_auth}"
+        logger.debug("Using basic authentication for Firecrawl")
 
     for url in urls:
         try:
-            # Make direct HTTP request to self-hosted Firecrawl
+            # Make direct HTTP request to Firecrawl
             response = requests.post(
                 f"{base_url}/v1/scrape",
                 json={
                     "url": url,
                     "formats": ["markdown"]
                 },
-                headers={
-                    "Content-Type": "application/json"
-                },
+                headers=headers,
                 timeout=30  # 30 second timeout
             )
 
@@ -148,11 +157,31 @@ async def scrape_urls_batch(urls: List[str], api_key: str = None) -> dict:
     }
 
 
-async def main_async(input_dir='dataset/acquisition/temp/urls', output_dir='dataset/acquisition/temp/datasources', verbose: bool = False):
-    """Main asynchronous function to run the webpage scraper using self-hosted Firecrawl."""
+async def main_async(input_dir='dataset/acquisition/temp/urls', output_dir='dataset/acquisition/temp/datasources', verbose: bool = False, force_local: bool = False):
+    """Main asynchronous function to run the webpage scraper using Firecrawl."""
 
     # Set up logging based on verbose flag
     logger.setLevel(logging.DEBUG if verbose else logging.INFO)
+
+    # Read configuration
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+
+    # Get Firecrawl settings from config
+    firecrawl_url = config.get('DEFAULT', 'firecrawl_url', fallback='http://localhost:3002')
+    firecrawl_user = config.get('DEFAULT', 'firecrawl_user', fallback='')
+    firecrawl_pass = config.get('DEFAULT', 'firecrawl_pass', fallback='')
+
+    # Override with local if forced
+    if force_local:
+        firecrawl_url = 'http://localhost:3002'
+        firecrawl_user = ''
+        firecrawl_pass = ''
+        logger.info("Forcing local Firecrawl instance usage")
+
+    logger.debug(f"Firecrawl URL: {firecrawl_url}")
+    if firecrawl_user:
+        logger.debug("Using authentication for Firecrawl")
 
     # Validate input directory
     if not validate_directory(input_dir):
@@ -162,7 +191,7 @@ async def main_async(input_dir='dataset/acquisition/temp/urls', output_dir='data
     # Create output directory if it doesn't exist
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    logger.debug("Starting self-hosted Firecrawl webpage scraper")
+    logger.debug("Starting Firecrawl webpage scraper")
     logger.debug(f"Input directory: {input_dir}")
     logger.debug(f"Output directory: {output_dir}")
 
@@ -203,7 +232,7 @@ async def main_async(input_dir='dataset/acquisition/temp/urls', output_dir='data
             logger.info(f"Removed {len(all_urls) - len(unique_urls)} duplicate URLs")
 
         # Perform batch scraping
-        batch_result = await scrape_urls_batch(unique_urls)
+        batch_result = await scrape_urls_batch(unique_urls, firecrawl_url, firecrawl_user, firecrawl_pass)
 
         # Save successful results to files
         saved_count = 0
@@ -230,7 +259,7 @@ async def main_async(input_dir='dataset/acquisition/temp/urls', output_dir='data
             except Exception as e:
                 logger.error(f"Failed to save content for URL {url}: {e}")
 
-        logger.info(f"Self-hosted Firecrawl scraper completed. Total URLs processed: {len(unique_urls)}, Successfully saved: {saved_count}")
+        logger.info(f"Firecrawl scraper completed. Total URLs processed: {len(unique_urls)}, Successfully saved: {saved_count}")
 
         return {
             "success": saved_count,
@@ -245,16 +274,18 @@ async def main_async(input_dir='dataset/acquisition/temp/urls', output_dir='data
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Scrape content from URLs using self-hosted Firecrawl API",
+        description="Scrape content from URLs using Firecrawl API",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-   python main.py /path/to/input /path/to/output
-   python main.py /path/to/input /path/to/output --verbose
+    python main.py /path/to/input /path/to/output
+    python main.py /path/to/input /path/to/output --verbose
+    python main.py /path/to/input /path/to/output --force-local
 
 Requirements:
-   Self-hosted Firecrawl instance running on localhost:3002
-   No API key required (authentication disabled in self-hosted setup)
+    Firecrawl instance running (local or external)
+    For external instances, configure firecrawl_url, firecrawl_user, and firecrawl_pass in config.ini
+    For local instances, no authentication required
         """
     )
 
@@ -278,6 +309,12 @@ Requirements:
         help="Enable verbose logging"
     )
 
+    parser.add_argument(
+        "--force-local",
+        action="store_true",
+        help="Force usage of local Firecrawl instance (localhost:3002) regardless of config"
+    )
+
     args = parser.parse_args()
-    result = asyncio.run(main_async(args.input_dir, args.output_dir, args.verbose))
+    result = asyncio.run(main_async(args.input_dir, args.output_dir, args.verbose, args.force_local))
     print(f"Scraping completed: {result['success']} successful, {result['failed']} failed")
