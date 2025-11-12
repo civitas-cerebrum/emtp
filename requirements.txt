@@ -9,4 +9,6 @@ language-tool-python>=2.9.4
 # PDF processing dependencies
 pypdf>=4.0.0
 
+# Requests
 requests
+aiohttp
