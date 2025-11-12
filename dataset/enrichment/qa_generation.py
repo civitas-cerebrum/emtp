@@ -40,7 +40,7 @@ async def generate_qna_dataset(prompt="You are an expert in {model_expertise}." 
                 print(f"Error reading file {filename}: {e}")
                 continue
 
-            print("Generating semi-sythetic data based on: " + filename)
+            print(f"Generating semi-sythetic data based on: {filename} ({len(document_content)} chars)")
 
             prompt = prompt.format(domain_of_expertise=model_expertise)
             
@@ -85,10 +85,18 @@ async def generate_qna_dataset(prompt="You are an expert in {model_expertise}." 
                     else:
                         print(f"Unexpected response format from Ollama for file {filename}: {json_response}")
 
-            except aiohttp.ClientError as e: # Use aiohttp's exception for client errors
-                print(f"Error making request to Ollama for file {filename}: {e}")
+            except aiohttp.ClientConnectorError as e:
+                print(f"Connection failed to Ollama at {base_url} for file {filename}: {e}")
+            except aiohttp.ServerTimeoutError as e:
+                print(f"Timeout connecting to Ollama at {base_url} for file {filename}: {e}")
+            except aiohttp.ClientResponseError as e:
+                print(f"HTTP {e.status} error from Ollama for file {filename}: {e.message}")
+            except aiohttp.ClientError as e:
+                print(f"Network error connecting to Ollama for file {filename}: {e}")
             except json.JSONDecodeError as e:
-                print(f"Error decoding JSON response from Ollama for file {filename}: {e}")
+                print(f"Invalid JSON response from Ollama for file {filename}: {e}")
+            except Exception as e:
+                print(f"Unexpected error processing Ollama response for file {filename}: {type(e).__name__}: {e}")
 
     return qna_dataset
 
