@@ -55,27 +55,17 @@ jobs:
 
     - name: Generate config.ini with secrets
       run: |
-        # Export secrets as environment variables
-        export BASE_URL="${{ secrets.BASE_URL }}"
-        export MODEL="${{ secrets.MODEL }}"
-        export AUTH_TOKEN="${{ secrets.AUTH_TOKEN }}"
-        export DATASET_PROMPT="${{ vars.DATASET_PROMPT }}"
-        export FIRECRAWL_URL="${{ secrets.FIRECRAWL_URL }}"
-        export FIRECRAWL_USER="${{ secrets.FIRECRAWL_USER }}"
-        export FIRECRAWL_PASS="${{ secrets.FIRECRAWL_PASS }}"
-
-        cat > config.ini << EOF
-        [DEFAULT]
-        model_expertise = Quality Assurance
-        input_dir = dataset/acquisition/temp/datasources
-        base_url = ${BASE_URL}
-        model_name = ${MODEL}
-        authorization_token = ${AUTH_TOKEN}
-        dataset_prompt = ${DATASET_PROMPT}
-        firecrawl_url = ${FIRECRAWL_URL}
-        firecrawl_user = ${FIRECRAWL_USER}
-        firecrawl_pass = ${FIRECRAWL_PASS}
-        EOF
+        # Create config using printf to avoid heredoc issues
+        printf "[DEFAULT]\n" > config.ini
+        printf "model_expertise = Quality Assurance\n" >> config.ini
+        printf "input_dir = dataset/acquisition/temp/datasources\n" >> config.ini
+        printf "base_url = %s\n" "${{ secrets.BASE_URL }}" >> config.ini
+        printf "model_name = %s\n" "${{ secrets.MODEL }}" >> config.ini
+        printf "authorization_token = %s\n" "${{ secrets.AUTH_TOKEN }}" >> config.ini
+        printf "dataset_prompt = %s\n" "${{ vars.DATASET_PROMPT }}" >> config.ini
+        printf "firecrawl_url = %s\n" "${{ secrets.FIRECRAWL_URL }}" >> config.ini
+        printf "firecrawl_user = %s\n" "${{ secrets.FIRECRAWL_USER }}" >> config.ini
+        printf "firecrawl_pass = %s\n" "${{ secrets.FIRECRAWL_PASS }}" >> config.ini
 
         echo "Generated config.ini:"
         cat config.ini
