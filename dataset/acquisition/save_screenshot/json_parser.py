@@ -10,83 +10,118 @@ from urllib.parse import urlparse
 
 def parse_json_file(file_path: str) -> Dict[str, Any]:
     """
-    Parse a JSON file and return its contents as a dictionary.
-
-    Args:
-        file_path (str): Path to the JSON file.
-
-    Returns:
-        Dict[str, Any]: Parsed JSON content.
-
-    Raises:
-        FileNotFoundError: If the file does not exist.
-        json.JSONDecodeError: If the file is not valid JSON.
+    Parses a JSON file and returns its content.
+    Raises errors if the file is not found or invalid.
     """
     if not os.path.exists(file_path):
-        raise FileNotFoundError(f"JSON file '{file_path}' not found.")
-
-    with open(file_path, 'r', encoding='utf-8') as file:
+        raise FileNotFoundError(f"File not found: {file_path}")
+    if not os.path.isfile(file_path):
+        raise ValueError(f"Path is not a file: {file_path}")
+    
+    with open(file_path, 'r', encoding='utf-8') as f:
         try:
-            data = json.load(file)
-            return data
+            return json.load(f)
         except json.JSONDecodeError as e:
-            raise json.JSONDecodeError(f"Invalid JSON in file '{file_path}': {e}")
+            raise ValueError(f"Invalid JSON in file {file_path}: {e}")
 
 
 def extract_urls_from_data(data: Any) -> List[str]:
     """
-    Extract URLs from parsed JSON data. This function recursively searches
-    through the data structure to find URL strings.
-
-    Args:
-        data: The parsed JSON data (dict, list, or primitive).
-
-    Returns:
-        List[str]: List of valid URLs found in the data.
+    Recursively extracts URLs from a given data structure.
+    Handles dictionaries, lists, and strings.
     """
     urls = []
-
     if isinstance(data, dict):
-        for key, value in data.items():
+        for value in data.values():
             urls.extend(extract_urls_from_data(value))
     elif isinstance(data, list):
         for item in data:
             urls.extend(extract_urls_from_data(item))
     elif isinstance(data, str):
-        # Check if the string is a valid URL
         if is_valid_url(data):
             urls.append(data)
-
     return urls
 
 
 def is_valid_url(url: str) -> bool:
     """
-    Check if a string is a valid URL.
-
-    Args:
-        url (str): The string to check.
-
-    Returns:
-        bool: True if valid URL, False otherwise.
+    Checks if a given string is a valid URL.
+    Returns True if valid, False otherwise.
     """
     try:
         result = urlparse(url)
         return all([result.scheme, result.netloc])
-    except:
+    except ValueError:
         return False
 
 
-def extract_urls_from_json_file(file_path: str) -> List[str]:
+def extract_urls_from_json_file(file_path: str) -> List[Dict[str, Any]]:
     """
-    Parse a JSON file and extract all URLs from it.
-
-    Args:
-        file_path (str): Path to the JSON file.
-
-    Returns:
-        List[str]: List of URLs found in the JSON file.
+    Extracts URLs and associated metadata from a JSON file.
+    Handles a specific input JSON structure and removes duplicate URLs.
     """
     data = parse_json_file(file_path)
-    urls = extract_urls_from_data(data)
-    return list(set(urls))  # Remove duplicates while preserving order
+    extracted_urls_with_metadata = []
+
+    # The data is a list of dictionaries, where each dict has 'category', 'question', 'urls'
+    if isinstance(data, list):
+        for entry in data:
+            category_name = entry.get("category", "Uncategorized")
+            question = entry.get("question")
+            urls = entry.get("urls", [])
+
+            for url in urls:
+                if url and is_valid_url(url):
+                    extracted_urls_with_metadata.append({
+                        "url": url,
+                        "categoryName": category_name,
+                        "question": question,
+                        "is_pdf": False # Assuming URLs from search are not PDFs
+                    })
+    else:
+        # Fallback for old/unexpected format (dict with categories as keys)
+        for category_name, entries in data.items():
+            for entry in entries:
+                url = entry.get("url")
+                question = entry.get("question")
+                is_pdf = entry.get("is_pdf", False) # Default to False if not specified
+
+                if url and is_valid_url(url):
+                    extracted_urls_with_metadata.append({
+                        "url": url,
+                        "categoryName": category_name,
+                        "question": question,
+                        "is_pdf": is_pdf
+                    })
+    
+    # Remove duplicates based on URL
+    unique_urls_dict = {item["url"]: item for item in extracted_urls_with_metadata}
+    return list(unique_urls_dict.values())
+
+
+def extract_urls_with_pdf_info(data: Any) -> List[tuple]:
+    """
+    Extracts URLs and PDF information from raw data.
+    Returns a list of tuples containing URL details.
+    """
+    urls_with_pdf = []
+    if isinstance(data, dict):
+        # Check if this dict itself represents a URL entry
+        url = data.get("url")
+        is_pdf = data.get("is_pdf", False)
+        if url and is_valid_url(url):
+            urls_with_pdf.append((url, is_pdf))
+        
+        # Recursively check values
+        for value in data.values():
+            urls_with_pdf.extend(extract_urls_with_pdf_info(value))
+            
+    elif isinstance(data, list):
+        for item in data:
+            urls_with_pdf.extend(extract_urls_with_pdf_info(item))
+            
+    # For strings, only add if it's a valid URL and assume not PDF
+    elif isinstance(data, str) and is_valid_url(data):
+        urls_with_pdf.append((data, False)) # Default to not PDF for raw URLs
+
+    return urls_with_pdf
