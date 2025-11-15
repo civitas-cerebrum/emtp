@@ -1,18 +1,20 @@
 from ddgs import DDGS
+import configparser
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-def search_question(category, question_data, dorks=None):
-    """Searches a single question using DuckDuckGo and returns the URLs.
+config = configparser.ConfigParser()
+config.read('config.ini')
+SEARCH_RESULT_COUNT = config.getint('DEFAULT', 'searchresultcount', fallback=5)
 
-    Args:
-        category: The category of the question
-        question_data: Either a string (legacy) or dict with question, dorks, urls
-        dorks: Optional DuckDuckGo search operators (e.g., "filetype:pdf site:example.com")
+
+def search_question(category, question_data, dorks=None):
     """
-    # Handle both legacy string format and new dict format
+    Searches for a question using DuckDuckGo.
+    Handles both string and dictionary formats for question data.
+    """
     if isinstance(question_data, str):
         question = question_data
         question_dorks = dorks
@@ -37,7 +39,7 @@ def search_question(category, question_data, dorks=None):
     logger.debug(f"Searching for: {search_query}")
     try:
         with DDGS() as ddgs:
-            results = list(ddgs.text(search_query, max_results=5))
+            results = list(ddgs.text(search_query, max_results=SEARCH_RESULT_COUNT))
             urls = [result['href'] for result in results if 'href' in result]
 
         return {"category": category, "question": question, "dorks": question_dorks, "urls": urls}

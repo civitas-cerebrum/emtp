@@ -1,5 +1,8 @@
 {
   "General Troubleshooting & Problem Solving (All Levels - but increasing complexity)": [
-    "Describe a time you found a critical bug. What was your approach to reporting it?"
+    "Describe a time you found a critical bug. What was your approach to reporting it?" 
+  ],
+  "Edge Cases Identification": [
+    "What constitutes an edge case in our system?"
   ]
 }

@@ -8,13 +8,19 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import argparse
 
 def get_questions(filename="qa_questions.json"):
-    """Reads questions from a JSON file."""
+    """
+    Reads questions from a JSON file.
+    Returns the loaded data.
+    """
     with open(filename, 'r', encoding='utf-8') as f:
         data = json.load(f)
     return data
 
 def search_question(category, question, engine='google'):
-    """Searches a single question and returns the URLs."""
+    """
+    Searches a single question using the specified engine.
+    Returns the question, category, and a list of URLs found.
+    """
     print(f"- Searching for: {question} (using {engine})")
     try:
         if engine == 'google':
@@ -32,7 +38,10 @@ def search_question(category, question, engine='google'):
         return {"category": category, "question": question, "urls": [], "error": str(e)}
 
 def search_and_save_urls(questions_data, engine='google', base_output_dir="output"):
-    """Searches for questions using the specified engine and saves the resulting URLs to separate JSON files per category."""
+    """
+    Searches for questions using the specified engine.
+    Saves resulting URLs to separate JSON files per category.
+    """
     import os
 
     # Create engine-specific output directory

@@ -40,14 +40,3 @@ JSON files containing URLs in any structure (e.g., from the URL Retrieval stage)
 ## Output
 
 Markdown files (`.md`) saved in the specified output directory, mirroring the input JSON file structure.
-
-## Dependencies
-
-- `requests`: For making HTTP requests to the Firecrawl API.
-- `json_parser`: Custom module for extracting URLs from JSON.
-- `file_finder`: Custom module for finding JSON files.
-
-## Requirements
-
-- Python 3.7+
-- A running instance of the self-hosted Firecrawl API (e.g., on `localhost:3002`).

@@ -2,8 +2,10 @@ import json
 import os
 
 def get_questions(filename="qa_questions.json"):
-    """Reads questions from a JSON file and normalizes to the expected format."""
-    # If filename is relative, look in the same directory as this script
+    """
+    Reads and normalizes questions from a JSON file.
+    Handles both legacy string and new dictionary formats for questions.
+    """
     if not os.path.isabs(filename):
         script_dir = os.path.dirname(__file__)
         filename = os.path.join(script_dir, filename)
