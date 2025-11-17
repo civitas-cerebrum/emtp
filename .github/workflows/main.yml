@@ -1,0 +1,83 @@
+name: EMTP Pipeline
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+jobs:
+  build-and-run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Run Trivy vulnerability scanner in repo mode
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: 'fs'
+          ignore-unfixed: true
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+      
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      
+      - name: Install Semgrep CLI
+        run: python3 -m pip install semgrep
+      
+      - name: Run Semgrep SAST and Secrets Scanning
+        run: semgrep scan --sarif --sarif-output=semgrep.sarif
+      
+      - name: Upload Semgrep scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'semgrep.sarif'
+      
+      - name: Generate config.ini with secrets
+        env:
+          BASE_URL: ${{ secrets.BASE_URL }}
+          MODEL: ${{ secrets.MODEL }}
+          AUTH_TOKEN: ${{ secrets.AUTH_TOKEN }}
+          DATASET_PROMPT: ${{ vars.DATASET_PROMPT }}
+          FIRECRAWL_URL: ${{ secrets.FIRECRAWL_URL }}
+          FIRECRAWL_USER: ${{ secrets.FIRECRAWL_USER }}
+          FIRECRAWL_PASS: ${{ secrets.FIRECRAWL_PASS }}
+        run: |
+          # Create config using printf with environment variables
+          printf "[DEFAULT]\n" > config.ini
+          printf "model_expertise = Quality Assurance\n" >> config.ini
+          printf "input_dir = dataset/acquisition/temp/datasources\n" >> config.ini
+          printf "base_url = %s\n" "$BASE_URL" >> config.ini
+          printf "model_name = %s\n" "$MODEL" >> config.ini
+          printf "authorization_token = %s\n" "$AUTH_TOKEN" >> config.ini
+          printf "dataset_prompt = %s\n" "$DATASET_PROMPT" >> config.ini
+          printf "firecrawl_url = %s\n" "$FIRECRAWL_URL" >> config.ini
+          printf "firecrawl_user = %s\n" "$FIRECRAWL_USER" >> config.ini
+          printf "firecrawl_pass = %s\n" "$FIRECRAWL_PASS" >> config.ini
+          
+          echo "✅ Generated config.ini"
+          echo "Config file location: $(pwd)/config.ini"
+          
+          # Show config with masked secrets (for debugging)
+          echo "=== Config verification (secrets masked) ==="
+          sed 's/\(authorization_token\|firecrawl_pass\) = .*/\1 = ***MASKED***/g' config.ini
+      
+      - name: Run EMTP Pipeline
+        run: python main.py --stage full_pipeline --questions-file dataset/acquisition/retrieve_url/sample.json --verbose
