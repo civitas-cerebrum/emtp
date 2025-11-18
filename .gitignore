@@ -2,6 +2,9 @@
 /.idea/
 .vscode/
 
+# Python
+__pycache__/
+*__pycache__/
 # Python: Build, cache, and compiled files
 **pycache**/
 *.py[cod]
@@ -36,8 +39,9 @@ venv.bak/
 # OS-specific temporary files
 .DS_Store
 Thumbs.db
-
-# Project-specific: Temporary and configuration files
 /dataset/acquisition/temp
-config.ini 
+dataset/enrichment/config.ini
+dataset/enrichment/qna_dataset.json
+config.ini
 qna_dataset.json
+
