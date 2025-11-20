@@ -3,11 +3,40 @@ import configparser
 import json
 import requests
 
-def generate_qna_dataset(prompt="You are an expert in {model_expertise}.", model_expertise="Software Engineering", input_dir="dataset/acquisition/temp/datasources", base_url="http://localhost:8080/api/generate", model_name="gemma3:27b", authorization_token=None):
+def generate_qna_dataset(config=None, base_url=None, model_name=None, authorization_token=None, prompt="You are an expert in {model_expertise}.", model_expertise="Software Engineering", input_dir=None):
     """
     Generates a Q&A dataset from markdown files using an external API.
     Processes files and formats questions and answers into a dataset.
     """
+    if config is None:
+        config = configparser.ConfigParser()
+        current = os.path.dirname(__file__)
+        while current != '':
+            print(current)
+            if 'emtp' in os.listdir(current):
+                break
+            current = os.path.dirname(current)
+            if current == '':
+                raise FileNotFoundError("Project root (with 'EMTP' folder) not found")
+
+        config_path = os.path.join(current, 'emtp', 'config.ini')
+        print(f"DEBUG: Config path: {config_path}")
+        config.read(config_path)
+        print(f"DEBUG: Config sections: {config.sections()}")
+    
+        if 'DEFAULT' in config:
+            base_url = config['DEFAULT']['base_url']
+            model_name = config['DEFAULT']['model_name']
+            authorization_token = config['DEFAULT'].get('authorization_token')
+            input_dir = config['DEFAULT']['input_dir']
+            print(f"DEBUG: Loaded from config - base_url: {base_url}, model_name: {model_name}, input_dir: {input_dir}")
+        else:
+            print("DEBUG: DEFAULT section not found in config")
+            base_url = "http://localhost:8080/api/generate"  # fallback
+            model_name = "gemma3:27b"
+            authorization_token = None
+            input_dir = "dataset/acquisition/temp/datasources"
+
     qna_dataset = []  # Initialize qna_dataset
     # Recursively find all .md files in the input directory
     markdown_files = []
@@ -66,15 +95,12 @@ def generate_qna_dataset(prompt="You are an expert in {model_expertise}.", model
             response = requests.post(base_url, headers=headers, json=request_body)
             response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
             json_response = response.json()
-            print(f"DEBUG: Raw JSON response from Ollama for {filename}: {json_response}") # Added debug print
 
             # Check if 'response' key exists and is a string, then parse it
             if "response" in json_response:
-                print(f"DEBUG: Content of json_response['response'] for {filename}: {json_response['response']}") # Added debug print
                 if isinstance(json_response["response"], str):
                     try:
                         qna = json.loads(json_response["response"])
-                        print(f"DEBUG: Parsed qna from string for {filename}: {qna}") # Added debug print
                         if "qnaList" in qna:
                             qna_list = qna["qnaList"]
                             qna_dataset.extend(qna_list)
@@ -109,19 +135,31 @@ def main(input_dir=None):
     Orchestrates Q&A dataset generation.
     Loads configuration, generates data, and saves it to a JSON file.
     """
+    config = configparser.ConfigParser()
+    config.read('config.ini')
 
     model_expertise = config['DEFAULT']['model_expertise']
-    if input_dir == None:
+    if input_dir is None:
         input_dir = config['DEFAULT']['input_dir']
-    base_url = config['DEFAULT']['base_url']
-    model_name = config['DEFAULT']['model_name']
-    authorization_token = config['DEFAULT']['authorization_token']
+    if base_url is None:
+        base_url = config['DEFAULT']['base_url']
+    if model_name is None:
+        model_name = config['DEFAULT']['model_name']
+    if authorization_token is None:
+        authorization_token = config['DEFAULT'].get('authorization_token') # Use .get for optional config
     dataset_prompt_template = config['DEFAULT']['dataset_prompt']
     # Format the prompt with model_expertise before passing it
     formatted_dataset_prompt = dataset_prompt_template.format(domain_of_expertise=model_expertise)
 
     # Generate dataset
-    dataset = generate_qna_dataset(formatted_dataset_prompt, model_expertise, input_dir, base_url, model_name, authorization_token)
+    dataset = generate_qna_dataset(
+        base_url=base_url,
+        model_name=model_name,
+        authorization_token=authorization_token,
+        prompt=formatted_dataset_prompt,
+        model_expertise=model_expertise,
+        input_dir=input_dir
+    )
 
     if dataset:
         print(f"Generated {len(dataset)} Q&A pairs.")
