@@ -57,7 +57,7 @@ def aggregate_metadata_to_file(metadata_entries: List[Dict[str, Any]], output_pa
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(final_output, f, indent=4)
-        logger.info(f"Metadata aggregated and saved to {output_path}. Content preview: {json.dumps(final_output[:1] if final_output else [], indent=2)}...") # Preview first entry
+        logger.info(f"Metadata aggregated and saved to {output_path}.") 
     except Exception as e:
         logger.error(f"Error aggregating metadata to file {output_path}: {e}")
 

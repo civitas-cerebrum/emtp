@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 config = configparser.ConfigParser()
 config.read('config.ini')
-SEARCH_RESULT_COUNT = config.getint('DEFAULT', 'searchresultcount', fallback=5)
+SEARCH_RESULT_COUNT = config.getint('DEFAULT', 'search_result_count', fallback=10)
 
 
 def search_question(category, question_data, dorks=None):

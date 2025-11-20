@@ -20,22 +20,15 @@ def generate_qna_dataset(config=None, base_url=None, model_name=None, authorizat
                 raise FileNotFoundError("Project root (with 'EMTP' folder) not found")
 
         config_path = os.path.join(current, 'emtp', 'config.ini')
-        print(f"DEBUG: Config path: {config_path}")
+        print(config_path)
         config.read(config_path)
-        print(f"DEBUG: Config sections: {config.sections()}")
-    
-        if 'DEFAULT' in config:
-            base_url = config['DEFAULT']['base_url']
-            model_name = config['DEFAULT']['model_name']
-            authorization_token = config['DEFAULT'].get('authorization_token')
-            input_dir = config['DEFAULT']['input_dir']
-            print(f"DEBUG: Loaded from config - base_url: {base_url}, model_name: {model_name}, input_dir: {input_dir}")
-        else:
-            print("DEBUG: DEFAULT section not found in config")
-            base_url = "http://localhost:8080/api/generate"  # fallback
-            model_name = "gemma3:27b"
-            authorization_token = None
-            input_dir = "dataset/acquisition/temp/datasources"
+
+    base_url = config['DEFAULT']['base_url']
+    model_name = config['DEFAULT']['model_name']
+    authorization_token = config['DEFAULT'].get('authorization_token')
+    input_dir = config['DEFAULT']['input_dir']
+
+    print(f"DEBUG: Loaded from config - base_url: {base_url}, model_name: {model_name}, input_dir: {input_dir}")
 
     qna_dataset = []  # Initialize qna_dataset
     # Recursively find all .md files in the input directory
