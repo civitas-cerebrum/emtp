@@ -1,7 +1,8 @@
 import os
-import configparser
 import json
 import requests
+
+from util.utilities import getConfig
 
 def generate_qna_dataset(prompt="You are an expert in {model_expertise}.", model_expertise="Software Engineering", input_dir="dataset/acquisition/temp/datasources", base_url="http://localhost:8080/api/generate", model_name="gemma3:27b", authorization_token=None):
     """
@@ -36,6 +37,7 @@ def generate_qna_dataset(prompt="You are an expert in {model_expertise}.", model
         
         request_body = {
             "model": model_name,
+            "keep_alive": 0,
             "prompt": formatted_prompt + "\n" + document_content,
             "stream": False,
             "images": None,
@@ -104,7 +106,9 @@ def generate_qna_dataset(prompt="You are an expert in {model_expertise}.", model
 
     return qna_dataset
 
-def main(input_dir=None):
+def main(config=None, input_dir=None):
+    if config is None:
+        config = getConfig()
     """
     Orchestrates Q&A dataset generation.
     Loads configuration, generates data, and saves it to a JSON file.
