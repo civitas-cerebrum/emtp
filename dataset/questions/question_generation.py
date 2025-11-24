@@ -62,7 +62,6 @@ def generate_questions(
             timeout=60
         )
         response.raise_for_status()
-
         json_response = response.json()
 
         if "response" in json_response:
