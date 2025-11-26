@@ -109,6 +109,10 @@ def categorise_question(
         f"Existing categories: {existing_categories}"
     )
 
+    headers = {"Content-Type": "application/json"}
+    if authorization_token:
+        headers["Authorization"] = f"Bearer {authorization_token}"
+        
     request_body = {
         "model": model_name,
         "prompt": prompt,
@@ -124,10 +128,6 @@ def categorise_question(
             "required": ["question", "category"],
         },
     }
-
-    headers = {"Content-Type": "application/json"}
-    if authorization_token:
-        headers["Authorization"] = f"Bearer {authorization_token}"
 
     try:
         response = requests.post(

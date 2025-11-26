@@ -33,7 +33,7 @@ def generate_qna_dataset(
         log.warning(f"No .md files found in {scraped_content_dir}")
         return qna_dataset
 
-    formatted_prompt = prompt.format(domain_of_expertise=model_expertise)
+    prompt = prompt.format(domain_of_expertise=model_expertise)
 
     for filepath in markdown_files:
         filename = os.path.basename(filepath)
@@ -51,7 +51,7 @@ def generate_qna_dataset(
         request_body = {
             "model": model_name,
             "keep_alive": 0,
-            "prompt": formatted_prompt + "\n" + document_content,
+            "prompt": prompt + "\n" + document_content,
             "stream": False,
             "images": None,
             "options": None,
@@ -161,12 +161,8 @@ def main(
     base_url = owui_base_url + ollama_uri
     scraped_content_dir = os.path.join(getEmtpDirectory(), scraped_content_dir)
 
-    formatted_dataset_prompt = dataset_prompt_template.format(
-        domain_of_expertise=model_expertise
-    )
-
     dataset = generate_qna_dataset(
-        prompt=formatted_dataset_prompt,
+        prompt=dataset_prompt_template,
         model_expertise=model_expertise,
         scraped_content_dir=scraped_content_dir,
         base_url=base_url,

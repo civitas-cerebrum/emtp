@@ -28,10 +28,12 @@ def generate_questions(
 
     start_time = time.perf_counter()
 
-    log.info(f"Question generation started for {topic} topic...")
-
     prompt = prompt.format(topic=topic)
 
+    headers = {"Content-Type": "application/json"}
+    if authorization_token:
+        headers["Authorization"] = f"Bearer {authorization_token}"
+        
     request_body = {
         "model": model_name,
         "keep_alive": 0,
@@ -45,16 +47,12 @@ def generate_questions(
         },
     }
 
-    headers = {"Content-Type": "application/json"}
-    if authorization_token:
-        headers["Authorization"] = f"Bearer {authorization_token}"
-
-    log.info(f"Generating generic questions about: {topic}")
-
     for attempt in range(1, retries + 1):
         try:
             if attempt > 1:
                 log.info(f"Attempt {attempt}/{retries}...")
+            else:
+                log.info(f"Question generation started for {topic} topic...")
 
             response = requests.post(
                 base_url,
