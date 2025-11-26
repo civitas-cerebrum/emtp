@@ -1,6 +1,7 @@
 import json
 import time
 import requests
+from typing import Optional
 from util.utilities import getConfig
 
 
@@ -9,7 +10,8 @@ def generate_questions(
     topic: str = "Software Engineering",
     base_url: str = "http://localhost:8080/api/generate",
     model_name: str = "gemma3:27b",
-    authorization_token = None
+    authorization_token: Optional[str] = None,
+    request_timeout: int = 60,
 ):
     """
     Generates a list of questions about a specified topic using the Ollama API.
@@ -26,7 +28,7 @@ def generate_questions(
               [{"question": "..."}]
               Returns empty list if API call fails.
     """
-    start_time = time.perf_counter() 
+    start_time = time.perf_counter()
 
     print(f"Generating generic questions about: {topic}")
 
@@ -41,12 +43,7 @@ def generate_questions(
         "options": None,
         "format": {
             "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "question": {"type": "string"}
-                }
-            }
+            "items": {"type": "object", "properties": {"question": {"type": "string"}}},
         }
     }
 
@@ -59,17 +56,17 @@ def generate_questions(
             base_url,
             headers=headers,
             data=json.dumps(request_body),
-            timeout=60
+            timeout=request_timeout,
         )
         response.raise_for_status()
         json_response = response.json()
 
         if "response" in json_response:
             questions = json.loads(json_response["response"])
-            
+
             elapsed = time.perf_counter() - start_time
             print(f"Generation completed in {elapsed:.2f} seconds.")
-            
+
             return questions
         else:
             print(f"Unexpected response format from API: {json_response}")
@@ -88,17 +85,15 @@ def main(config=None):
         config = getConfig()
 
     topic = config["DEFAULT"]["model_expertise"]
-    base_url = config["DEFAULT"]["base_url"]
+    owui_base_url = config["DEFAULT"]["owui_base_url"]
+    ollama_uri = config["DEFAULT"]["ollama_uri"]
+    base_url = owui_base_url + ollama_uri
     model_name = config["DEFAULT"]["model_name"]
     authorization_token = config["DEFAULT"]["authorization_token"]
     q_gen_prompt = config["DEFAULT"]["q_gen_prompt"]
 
     questions = generate_questions(
-        q_gen_prompt,
-        topic,
-        base_url,
-        model_name,
-        authorization_token
+        q_gen_prompt, topic, base_url, model_name, authorization_token
     )
 
     if questions:
