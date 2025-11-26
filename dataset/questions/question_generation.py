@@ -3,9 +3,9 @@ import json
 import time
 import requests
 from typing import Optional
-from .question_categorisation import categorise_questions
+from .question_categorisation import main as categorise_questions
 from ..acquisition import retrieve_url_stage, save_datasource_stage
-from util.utilities import getConfig, getEmtpDirectory, getLogger
+from util.utilities import getConfig, getLogger, getEmtpDirectory
 
 config = getConfig()
 log = getLogger(__name__)
@@ -25,6 +25,8 @@ def generate_questions(
     Generates a list of questions about a specified topic using the Ollama API.
     Retries if no questions were returned or if the request fails.
     """
+
+    start_time = time.perf_counter()
 
     log.info(f"Question generation started for {topic} topic...")
 
@@ -47,7 +49,6 @@ def generate_questions(
     if authorization_token:
         headers["Authorization"] = f"Bearer {authorization_token}"
 
-    start_time = time.perf_counter()
     log.info(f"Generating generic questions about: {topic}")
 
     for attempt in range(1, retries + 1):
@@ -125,24 +126,18 @@ def main(
         with open(questions_file, "w", encoding="utf-8") as f:
             json.dump(questions, f, indent=4)
 
-        log.info(f"Categorised questions saved to {categorised_questions_file}")
+        log.info(f"Generated questions saved to {questions_file}")
     else:
-        log.error("Failed to generate categorised questions.")
+        log.error("Failed to generate questions.")
 
-    categorized_questions = categorise_questions(
-        questions=questions,
-        base_url=base_url,
+    categorise_questions(
+        owui_base_url=owui_base_url,
+        ollama_uri=ollama_uri,
         model_name=model_name,
         authorization_token=authorization_token,
+        questions_file=questions_file,
+        categorised_questions_file=categorised_questions_file,
     )
-
-    if categorized_questions:
-        with open(categorised_questions_file, "w", encoding="utf-8") as f:
-            json.dump(categorized_questions, f, indent=4)
-
-        log.info(f"Categorised questions saved to {categorised_questions_file}")
-    else:
-        log.error("Failed to generate categorised questions.")
 
     question_path = os.path.join(getEmtpDirectory(), categorised_questions_file)
 
