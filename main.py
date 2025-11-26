@@ -16,7 +16,7 @@ from collections import defaultdict # Import defaultdict
 import asyncio # Import asyncio
 from dataset.acquisition import retrieve_url_stage
 from dataset.acquisition.save_datasource.main import main as save_datasource_stage
-from dataset.enrichment.qa_generation import generate_qna_dataset
+from dataset.enrichment.dataset_generation import generate_qna_dataset
 
 
 # Set up a more flexible logger
