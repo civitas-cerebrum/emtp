@@ -1,7 +1,7 @@
 import os
 import configparser
 import logging
-from typing import Optional
+
 
 def getEmtpDirectory():
     current = os.path.dirname(__file__)
@@ -22,15 +22,15 @@ def getConfig(config_name="config.ini"):
     return config
 
 
-def getConfigValue(key, fallback=None, section: str = "DEFAULT"):
-    value = getConfig().get(section, key, fallback=fallback)
-    getConfig().getboolean(section, key, fallback=fallback)
-    return value
-
-def getLogger(name=__name__, verbose: bool = getConfig().getboolean(section="DEFAULT", option="debug_logs", fallback=False)):
+def getLogger(
+    name=__name__,
+    verbose: bool = getConfig().getboolean(
+        section="DEFAULT", option="debug_logs", fallback=False
+    ),
+):
     logging.basicConfig(
-            level=logging.DEBUG if verbose else logging.INFO,
-            format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-        )
+        level=logging.DEBUG if verbose else logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
     logger = logging.getLogger(name)
     return logger
