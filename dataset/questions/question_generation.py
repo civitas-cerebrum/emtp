@@ -5,19 +5,19 @@ import requests
 from typing import Optional
 from .question_categorisation import categorise_questions
 from ..acquisition import retrieve_url_stage, save_datasource_stage
-from util.utilities import getConfig, getEmtpDirectory, getLogger, getConfigValue
+from util.utilities import getConfig, getEmtpDirectory, getLogger
 
 config = getConfig()
 log = getLogger(__name__)
 
 
 def generate_questions(
-    prompt: str = "Generate 50 questions about {topic}.",
-    topic: str = "Software Engineering",
-    base_url: str = "http://localhost:8080/api/generate",
-    model_name: str = "gemma3:27b",
+    prompt: str,
+    topic: str,
+    base_url: str,
+    model_name: str,
+    request_timeout: int,
     authorization_token: Optional[str] = None,
-    request_timeout: int = 60,
     retries: int = 5,
     retry_delay: int = 2,
 ):
@@ -94,19 +94,40 @@ def generate_questions(
     raise Exception("All retries exhausted. Returning empty list.")
 
 
-def main():
-    topic = config["DEFAULT"]["model_expertise"]
-    owui_base_url = config["DEFAULT"]["owui_base_url"]
-    ollama_uri = config["DEFAULT"]["ollama_uri"]
+def main(
+    topic=config.get("DEFAULT", "model_expertise", fallback="Software Engineering"),
+    owui_base_url=config.get(
+        "DEFAULT", "owui_base_url", fallback="http://localhost:8080"
+    ),
+    ollama_uri=config.get("DEFAULT", "ollama_uri", fallback="/api/generate"),
+    model_name=config.get("DEFAULT", "model_name", fallback="gemma3:27b"),
+    authorization_token=config.get("DEFAULT", "authorization_token", fallback=None),
+    q_gen_prompt=config.get(
+        "DEFAULT", "q_gen_prompt", fallback="Generate 50 questions about {topic}."
+    ),
+    request_timeout=config.getint("DEFAULT", "request_timeout", fallback=60),
+    questions_file="generated-questions.json",
+    categorised_questions_file="categorised-questions.json",
+):
+
     base_url = owui_base_url + ollama_uri
-    model_name = config["DEFAULT"]["model_name"]
-    authorization_token = config["DEFAULT"]["authorization_token"]
-    q_gen_prompt = config["DEFAULT"]["q_gen_prompt"]
-    output_file = "categorised-questions.json"
 
     questions = generate_questions(
-        q_gen_prompt, topic, base_url, model_name, authorization_token
+        q_gen_prompt,
+        topic,
+        base_url,
+        model_name,
+        authorization_token=authorization_token,
+        request_timeout=request_timeout,
     )
+
+    if questions:
+        with open(questions_file, "w", encoding="utf-8") as f:
+            json.dump(questions, f, indent=4)
+
+        log.info(f"Categorised questions saved to {categorised_questions_file}")
+    else:
+        log.error("Failed to generate categorised questions.")
 
     categorized_questions = categorise_questions(
         questions=questions,
@@ -116,14 +137,14 @@ def main():
     )
 
     if categorized_questions:
-        with open(output_file, "w", encoding="utf-8") as f:
+        with open(categorised_questions_file, "w", encoding="utf-8") as f:
             json.dump(categorized_questions, f, indent=4)
 
-        log.info(f"Categorised questions saved to {output_file}")
+        log.info(f"Categorised questions saved to {categorised_questions_file}")
     else:
         log.error("Failed to generate categorised questions.")
 
-    question_path = os.path.join(getEmtpDirectory(), output_file)
+    question_path = os.path.join(getEmtpDirectory(), categorised_questions_file)
 
     retrieve_url_stage(questions_file=question_path)
     save_datasource_stage()
