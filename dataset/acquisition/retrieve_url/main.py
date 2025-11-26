@@ -27,7 +27,7 @@ def search_and_save_urls(questions_data, base_output_dir="dataset/acquisition/te
         category_results = []
         for question_data in questions:
             question_text = question_data.get('question', str(question_data)) if isinstance(question_data, dict) else question_data
-            result = search_question(category, question_data, dorks)
+            result = search_question(category, question_text, dorks)
             if result:
                 category_results.append(result)
             time.sleep(5) # Increased delay to prevent rate-limiting
@@ -41,7 +41,7 @@ def search_and_save_urls(questions_data, base_output_dir="dataset/acquisition/te
         logger.debug(f"Saved {len(category_results)} results to {output_file}")
 
 
-def run(output_dir='dataset/acquisition/temp/urls', questions_file='qa_questions.json', verbose: bool = False, dorks: str = None):
+def run(output_dir='dataset/acquisition/temp/urls', questions_file='qa_questions.json', verbose: bool = True, dorks: str = None):
     """
     Executes the URL search and saving process.
     Loads questions and initiates the search.
