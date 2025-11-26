@@ -1,65 +1,99 @@
-
 import json
 import time
 import argparse
 import os
-import logging
+from typing import Optional
 from .data_loader import get_questions
-from .search_engine import search_question
+from .search_engine import search_question  
+from util.utilities import getConfig, getLogger
 
-# Use the global logger configuration
-logger = logging.getLogger(__name__)
+config = getConfig()
+log = getLogger(__name__)
 
 
-def search_and_save_urls(questions_data, base_output_dir="dataset/acquisition/temp/urls", verbose: bool = False, dorks: str = None):
+def search_and_save_urls(
+    questions_data,
+    search_result_count: int,
+    base_output_dir: str = "dataset/acquisition/temp/urls",
+    dorks: Optional[str] = None,
+):
     """
     Searches for questions and saves URLs to JSON files.
     Organizes results by category into separate JSON files.
     """
     os.makedirs(base_output_dir, exist_ok=True)
 
-    logger.setLevel(logging.DEBUG if verbose else logging.INFO) # Set level for this call
     if dorks:
-        logger.info(f"Using dorks: {dorks}")
+        log.info(f"Using dorks: {dorks}")
 
     for category, questions in questions_data.items():
-        logger.debug(f"Processing category: {category}")
+        log.debug(f"Processing category: {category}")
         category_results = []
         for question_data in questions:
-            question_text = question_data.get('question', str(question_data)) if isinstance(question_data, dict) else question_data
-            result = search_question(category, question_text, dorks)
+            question_text = (
+                question_data.get("question", str(question_data))
+                if isinstance(question_data, dict)
+                else question_data
+            )
+            result = search_question(
+                category, question_text, dorks, search_result_count=search_result_count
+            )
             if result:
                 category_results.append(result)
-            time.sleep(5) # Increased delay to prevent rate-limiting
+            time.sleep(5)  # Increased delay to prevent rate-limiting
 
-        safe_filename = "".join(c for c in category if c.isalnum() or c in (' ', '-', '_')).rstrip()
-        safe_filename = safe_filename.lower().replace(' ', '_').replace('-', '_') + '.json'
+        safe_filename = "".join(
+            c for c in category if c.isalnum() or c in (" ", "-", "_")
+        ).rstrip()
+        safe_filename = (
+            safe_filename.lower().replace(" ", "_").replace("-", "_") + ".json"
+        )
         output_file = os.path.join(base_output_dir, safe_filename)
 
-        with open(output_file, 'w', encoding='utf-8') as f:
+        with open(output_file, "w", encoding="utf-8") as f:
             json.dump(category_results, f, indent=4)
-        logger.debug(f"Saved {len(category_results)} results to {output_file}")
+        log.debug(f"Saved {len(category_results)} results to {output_file}")
 
 
-def run(output_dir='dataset/acquisition/temp/urls', questions_file='qa_questions.json', verbose: bool = True, dorks: str = None):
+def run(
+    output_dir="dataset/acquisition/temp/urls",
+    questions_file="qa_questions.json",
+    search_result_count=config.getint("DEFAULT", "search_result_count", fallback=10),
+    dorks: Optional[str] = None,
+):
     """
     Executes the URL search and saving process.
     Loads questions and initiates the search.
     """
     questions_data = get_questions(filename=questions_file)
-    search_and_save_urls(questions_data, output_dir, verbose, dorks)
+    search_and_save_urls(
+        questions_data=questions_data,
+        search_result_count=search_result_count,
+        base_output_dir=output_dir,
+        dorks=dorks,
+    )
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Search questions using DuckDuckGo')
-    parser.add_argument('--output-dir', default='dataset/acquisition/temp/urls',
-                        help='Output directory (default: dataset/acquisition/temp/urls)')
-    parser.add_argument('--questions-file', default='qa_questions.json',
-                        help='Questions file (default: qa_questions.json)')
-    parser.add_argument('--verbose', '-v', action='store_true',
-                        help='Enable verbose logging')
-    parser.add_argument('--dorks', type=str,
-                        help='DuckDuckGo search operators to apply to all searches (e.g., "filetype:pdf site:example.com")')
+    parser = argparse.ArgumentParser(description="Search questions using DuckDuckGo")
+    parser.add_argument(
+        "--output-dir",
+        default="dataset/acquisition/temp/urls",
+        help="Output directory (default: dataset/acquisition/temp/urls)",
+    )
+    parser.add_argument(
+        "--questions-file",
+        default="qa_questions.json",
+        help="Questions file (default: qa_questions.json)",
+    )
+    parser.add_argument(
+        "--verbose", "-v", action="store_true", help="Enable verbose logging"
+    )
+    parser.add_argument(
+        "--dorks",
+        type=str,
+        help='DuckDuckGo search operators to apply to all searches (e.g., "filetype:pdf site:example.com")',
+    )
 
     args = parser.parse_args()
     run(args.output_dir, args.questions_file, args.verbose, args.dorks)
