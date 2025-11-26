@@ -44,7 +44,7 @@ def generate_questions(
         "format": {
             "type": "array",
             "items": {"type": "object", "properties": {"question": {"type": "string"}}},
-        }
+        },
     }
 
     headers = {"Content-Type": "application/json"}

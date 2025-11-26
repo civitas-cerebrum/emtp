@@ -46,7 +46,9 @@ def categorise_questions(
             request_timeout=request_timeout,
         )
 
-        print(f"Categorisation result: {result["category"] if result else 'Unsuccessful'}")
+        print(
+            f"Categorisation result: {result["category"] if result else 'Unsuccessful'}"
+        )
 
         if not result:
             print(f"Skipping question due to model error: {q}")
@@ -107,10 +109,10 @@ def categorise_question(
             "type": "object",
             "properties": {
                 "question": {"type": "string"},
-                "category": {"type": "string"}
+                "category": {"type": "string"},
             },
-            "required": ["question", "category"]
-        }
+            "required": ["question", "category"],
+        },
     }
 
     headers = {"Content-Type": "application/json"}
