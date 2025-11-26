@@ -23,27 +23,14 @@ def categorise_questions(
         "images": None,
         "options": None,
         "format": {
-            "type" : "object",
-            "properties" : {
-                "categories" : {
-                    "type" : "array",
-                    "items" : {
-                        "type" : "object",
-                        "properties" : {
-                            "name" : {
-                                "type" : "string"
-                            },
-                            "questions" : {
-                                "type" : "array",
-                                "items" : {
-                                    "type" : "string"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+
+            "type": "object",
+            "properties": {
+                "question": {"type": "string"},
+                "category": {"type": "string"},
+            },
+            "required": ["question", "category"],
+        },
     }
 
     headers = {"Content-Type": "application/json"}
