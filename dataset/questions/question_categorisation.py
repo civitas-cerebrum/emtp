@@ -1,7 +1,6 @@
 import json
 import time
 import requests
-import logging
 from typing import Optional, List, Dict
 from util.utilities import getConfig, getLogger
 
