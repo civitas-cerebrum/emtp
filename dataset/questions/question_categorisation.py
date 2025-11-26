@@ -3,18 +3,19 @@ import time
 import requests
 import logging
 from typing import Optional, List, Dict
-from util.utilities import getConfig, getLogger, getConfigValue
+from util.utilities import getConfig, getLogger
 
 config = getConfig()
 log = getLogger(__name__)
 
+
 def categorise_questions(
     questions,
-    prompt: str = "Categorise the following question into one of the existing categories or create a new category if none fit.",
-    base_url: str = "http://localhost:8080/api/generate",
-    model_name: str = "gemma3:27b",
+    prompt: str,
+    base_url: str,
+    model_name: str,
+    request_timeout: int,
     authorization_token: Optional[str] = None,
-    request_timeout: int = 60,
 ) -> List[Dict[str, List[str]]]:
     """
     Categorizes a list of questions using a language model. Each question is categorized
@@ -41,7 +42,7 @@ def categorise_questions(
 
     for q in questions:
         question = q["question"]
-        log.debug(f"\nCategorising question: {question}")
+        log.debug(f"Categorising question: {question}")
 
         result = categorise_question(
             question=question,
@@ -103,9 +104,6 @@ def categorise_question(
     ]
     """
 
-    log.setLevel(logging.DEBUG if verbose else logging.INFO)
-
-
     prompt = (
         f"Instruction: {prompt} "
         f"Question: {question}\n"
@@ -159,21 +157,27 @@ def categorise_question(
     return None
 
 
-def main(config=None, file_path="generic-questions.json"):
-    if config is None:
-        config = getConfig()
+def main(
+    owui_base_url=config.get(
+        "DEFAULT", "owui_base_url", fallback="http://localhost:8080"
+    ),
+    ollama_uri=config.get("DEFAULT", "ollama_uri", fallback="/api/generate"),
+    model_name=config.get("DEFAULT", "model_name", fallback="gemma3:27b"),
+    authorization_token=config.get("DEFAULT", "authorization_token", fallback=None),
+    q_categorisation_prompt=config.get(
+        "DEFAULT",
+        "q_categorisation_prompt",
+        fallback="Categorise the following question into one of the existing categories or create a new category if none fit.",
+    ),
+    request_timeout=config.getint("DEFAULT", "request_timeout", fallback=60),
+    questions_file="generated-questions.json",
+    categorised_questions_file="categorised-questions.json",
+):
 
-    owui_base_url = config["DEFAULT"]["owui_base_url"]
-    ollama_uri = config["DEFAULT"]["ollama_uri"]
     base_url = owui_base_url + ollama_uri
-    q_categorisation_prompt = config["DEFAULT"]["q_categorisation_prompt"]
-    model_name = config["DEFAULT"]["model_name"]
-    authorization_token = config["DEFAULT"]["authorization_token"]
-
-    output_file = "categorised-questions.json"
 
     try:
-        with open(file_path, "r") as file:
+        with open(questions_file, "r") as file:
             questions = json.load(file)
 
         categorized_questions = categorise_questions(
@@ -181,21 +185,24 @@ def main(config=None, file_path="generic-questions.json"):
             prompt=q_categorisation_prompt,
             base_url=base_url,
             model_name=model_name,
+            request_timeout=request_timeout,
             authorization_token=authorization_token,
         )
 
         if categorized_questions:
-            with open(output_file, "w", encoding="utf-8") as f:
+            with open(categorised_questions_file, "w", encoding="utf-8") as f:
                 json.dump(categorized_questions, f, indent=4)
 
-            print(f"Categorised questions saved to {output_file}")
+            print(f"Categorised questions saved to {categorised_questions_file}")
         else:
             print("Failed to generate categorised questions.")
 
     except FileNotFoundError:
-        print(f"File not found: {file_path}")
+        print(f"File not found: {categorised_questions_file}")
     except json.JSONDecodeError:
-        print(f"Error decoding JSON from {file_path}. Check the file format.")
+        print(
+            f"Error decoding JSON from {categorised_questions_file}. Check the file format."
+        )
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
 
