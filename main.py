@@ -16,7 +16,7 @@ from collections import defaultdict # Import defaultdict
 import asyncio # Import asyncio
 from dataset.acquisition import retrieve_url_stage
 from dataset.acquisition.save_datasource.main import main as save_datasource_stage
-from dataset.enrichment.dataset_generation import generate_qna_dataset
+from dataset.enrichment.dataset_generation import main as generate_qna_dataset
 
 
 # Set up a more flexible logger
@@ -163,24 +163,10 @@ async def run_semi_sythetic_data_generation(metadata_entries: List[Dict[str, Any
     print(f"🤖 Starting semi-synthetic data generation and metadata aggregation...")
     
     # Generate Q&A dataset
-    # We need to get the prompt and model_expertise from config.ini for qa_generation
-    config = configparser.ConfigParser()
-    config.read('config.ini')
-    model_expertise = config['DEFAULT']['model_expertise']
-    dataset_prompt_template = config['DEFAULT']['dataset_prompt']
-    formatted_dataset_prompt = dataset_prompt_template.format(domain_of_expertise=model_expertise)
-
     # Pass the full path to the markdown files to qa_generation.generate_qna_dataset
     # qa_generation.generate_qna_dataset expects markdown files to be found from input_dir,
     # which is the markdown_base_dir here.
-    qna_dataset = generate_qna_dataset(
-        prompt=formatted_dataset_prompt,
-        model_expertise=model_expertise,
-        input_dir=markdown_base_dir,
-        base_url=base_url,
-        model_name=model_name,
-        authorization_token=authorization_token
-    )
+    qna_dataset = generate_qna_dataset()
 
     if qna_dataset:
         print(f"Generated {len(qna_dataset)} Q&A pairs.")
