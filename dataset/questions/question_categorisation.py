@@ -30,9 +30,9 @@ def categorise_questions(
         ]
     """
 
-    log.info(f"Question categorisation started for {len(questions)} questions...")
-
     start_time = time.perf_counter()
+
+    log.info(f"Question categorisation started for {len(questions)} questions...")
 
     if not questions:
         log.info("No questions provided.")
