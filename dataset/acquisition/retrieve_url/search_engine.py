@@ -7,24 +7,23 @@ logger = logging.getLogger(__name__)
 
 config = configparser.ConfigParser()
 config.read('config.ini')
-SEARCH_RESULT_COUNT = config.getint('DEFAULT', 'searchresultcount', fallback=5)
+SEARCH_RESULT_COUNT = config.getint('DEFAULT', 'search_result_count', fallback=10)
 
-
-def search_question(category, question_data, dorks=None):
+def search_question(category, question_text, dorks=None):
     """
     Searches for a question using DuckDuckGo.
     Handles both string and dictionary formats for question data.
     """
-    if isinstance(question_data, str):
-        question = question_data
+    if isinstance(question_text, str):
+        question = question_text
         question_dorks = dorks
         provided_urls = None
-    elif isinstance(question_data, dict):
-        question = question_data.get("question", "")
-        question_dorks = question_data.get("dorks") or dorks
-        provided_urls = question_data.get("urls")
+    elif isinstance(question_text, dict):
+        question = question_text.get("question", "")
+        question_dorks = question_text.get("dorks") or dorks
+        provided_urls = question_text.get("urls")
     else:
-        raise ValueError(f"Invalid question_data format: {question_data}")
+        raise ValueError(f"Invalid question_data format: {question_text}")
 
     # If URLs are already provided, use them directly
     if provided_urls:
