@@ -42,9 +42,9 @@ Thumbs.db
 /dataset/acquisition/temp
 dataset/enrichment/config.ini
 dataset/enrichment/qna_dataset.json
+
 config.ini
 qna_dataset.json
-
 categorised-questions.json
 generic-questions.json
 generated-questions.json
