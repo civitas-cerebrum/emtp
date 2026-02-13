@@ -1,33 +1,35 @@
 # Core dependencies for EMTP (Expert Model Training Pipeline)
 
-# URL retrieval dependencies
 ddgs>=0.1.0
-
-# Screenshot capture dependencies
-selenium>=4.15.0
-Pillow>=10.0.0
-webdriver-manager>=4.0.0
-
-# Screenshot processing dependencies
-pytesseract>=0.3.10
 language-tool-python>=2.9.4
+pypdf>=4.0.0
+requests==2.32.3
+aiohttp==3.11.18
 
-requests
+--extra-index-url https://download.pytorch.org/whl/cu128
 
-# Training script dependencies
+# Core ML Stack (Unchanged)
 torch==2.7.0+cu128
 torchvision==0.22.0+cu128
 torchaudio==2.7.0+cu128
---extra-index-url https://download.pytorch.org/whl/cu128
-
-transformers>=4.51.3
-tensorboard
-
-datasets==3.3.2
-accelerate==1.4.0
-evaluate==0.4.3
 bitsandbytes==0.45.3
-trl==0.15.2
+evaluate==0.4.3
 peft==0.14.0
-protobuf
-sentencepiece
+pipdeptree==2.30.0
+sentencepiece==0.2.0
+tensorboard==2.19.0
+trl==0.15.2
+wheel==0.45.1
+
+# --- STRICT DOWNSTREAM PINS - OPTIMISED FOR BLACKWELL ---
+# Pinning these ensures pip doesn't automatically upgrade them potentially breaking version compatibility.
+transformers==4.51.3
+datasets==3.3.2
+huggingface-hub==0.31.1
+numpy==2.1.2
+pandas==2.2.3
+accelerate==1.4.0
+safetensors==0.5.3
+pillow==11.0.0
+setuptools==70.2.0
+pyarrow==20.0.0
