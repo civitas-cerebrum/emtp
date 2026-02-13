@@ -41,3 +41,4 @@ Thumbs.db
 /dataset/acquisition/temp
 config.ini 
 qna_dataset.json
+*.json
