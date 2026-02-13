@@ -23,16 +23,23 @@ def load_and_format_dataset(file_path: str, system_message: str) -> List[Dict]:
         with open(file_path, 'r', encoding='utf-8') as f:
             qa_data = json.load(f)
 
-        for item in qa_data:
+        for idx, item in enumerate(qa_data):
+            question = item.get("q")
+            answer = item.get("a")
+
+            if not question or not answer:
+                log.warning(f"Skipping invalid item at index {idx}. Missing 'q' or 'a': {item}")
+                continue
+
             conversation = [
                 {"role": "system", "content": system_message},
-                {"role": "user", "content": item["q"]},
-                {"role": "assistant", "content": item["a"]}
+                {"role": "user", "content": question},
+                {"role": "assistant", "content": answer}
             ]
             formatted_data.append({"messages": conversation})
 
     except Exception as e:
-        log.error(f"Error processing JSON file {file_path}: {e}")
+        log.error(f"Error processing JSON file {file_path}: {e}", exc_info=True)
 
     return formatted_data
 
@@ -54,15 +61,13 @@ def train_model(
     else:
         log.warning("No Hugging Face token provided. Ensure you are logged in via CLI.")
 
-    # Prepare System Prompt
     system_prompt = system_prompt_template.format(
         model_name=output_model_name,
         model_expertise=model_expertise
     )
     log.info(f"System Prompt: {system_prompt}")
 
-    # Load and Format Data
-    #dataset_path = os.path.join(getEmtpDirectory(), dataset_path)
+    dataset_path = os.path.join(getEmtpDirectory(), dataset_path)
     formatted_data = load_and_format_dataset(dataset_path, system_prompt)
 
     if not formatted_data:
@@ -72,26 +77,22 @@ def train_model(
     dataset = Dataset.from_list(formatted_data)
     log.info(f"Loaded {len(dataset)} training examples from {dataset_path}")
 
-    # Determine Model Class
     if base_model_id == "google/gemma-3-1b-pt":
         model_class = AutoModelForCausalLM
     else:
         model_class = AutoModelForImageTextToText
 
-    # Determine Dtype
     if torch.cuda.get_device_capability()[0] >= 8:
         torch_dtype = torch.bfloat16
     else:
         torch_dtype = torch.float16
 
- # Define model init arguments
     model_kwargs = dict(
-        attn_implementation="eager", # Use "flash_attention_2" when running on Ampere or newer GPU
-        torch_dtype=torch_dtype, # What torch dtype to use, defaults to auto
-        device_map="auto", # Let torch decide how to load the model
+        attn_implementation="eager",
+        torch_dtype=torch_dtype,
+        device_map="auto",
     )
 
-    # BitsAndBytesConfig: Enables 4-bit quantization to reduce model size/memory usage
     model_kwargs["quantization_config"] = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_use_double_quant=True,
@@ -105,7 +106,6 @@ def train_model(
     model = model_class.from_pretrained(base_model_id, **model_kwargs)
     tokenizer = AutoTokenizer.from_pretrained(base_model_id)
 
-    # LoRA Configuration
     peft_config = LoraConfig(
         lora_alpha=16,
         lora_dropout=0.05,
@@ -116,7 +116,6 @@ def train_model(
         modules_to_save=["lm_head", "embed_tokens"]
     )
 
-    # Training Arguments
     args = SFTConfig(
         output_dir=output_model_name,
         max_seq_length=512,
@@ -142,10 +141,8 @@ def train_model(
         }
     )
 
-    # Set Chat Template
     tokenizer.chat_template = "{% if not add_generation_prompt is defined %}{% set add_generation_prompt = false %}{% endif %}{% for message in messages %}{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant\n' }}{% endif %}"
 
-    # Initialize Trainer
     trainer = SFTTrainer(
         model=model,
         args=args,
@@ -162,15 +159,12 @@ def train_model(
         log.warning("No previous checkpoint found. Starting training from scratch.")
         trainer.train()
 
-    # Save Adapter
     torch.save(trainer.model.state_dict(), f"{args.output_dir}/adapter_model.bin")
     trainer.save_model()
 
-    # Clean up for Merging
     del model, trainer
     torch.cuda.empty_cache()
 
-    # Merge and Save
     log.info("Merging LoRA adapter with base model...")
     model = model_class.from_pretrained(base_model_id, low_cpu_mem_usage=True, torch_dtype=torch_dtype)
 
