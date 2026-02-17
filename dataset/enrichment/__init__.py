@@ -1,3 +1,3 @@
-from .qa_generation import main as qa_generation
+from .dataset_generation import main as dataset_generation
 
-__all__ = ['qa_generation']
+__all__ = ['dataset_generation']

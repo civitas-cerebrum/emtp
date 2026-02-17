@@ -9,16 +9,8 @@ from typing import List
 
 def find_json_files(directory: str) -> List[str]:
     """
-    Recursively find all JSON files in the given directory.
-
-    Args:
-        directory (str): The root directory to search in.
-
-    Returns:
-        List[str]: List of paths to JSON files found.
-
-    Raises:
-        ValueError: If the directory does not exist or is not a directory.
+    Finds all JSON files recursively within a given directory.
+    Returns a sorted list of their paths.
     """
     if not os.path.exists(directory):
         raise ValueError(f"Directory '{directory}' does not exist.")
@@ -35,12 +27,7 @@ def find_json_files(directory: str) -> List[str]:
 
 def validate_directory(directory: str) -> bool:
     """
-    Validate that the given path is an existing directory.
-
-    Args:
-        directory (str): The directory path to validate.
-
-    Returns:
-        bool: True if valid, False otherwise.
+    Checks if a given path exists and is a directory.
+    Returns True if valid, False otherwise.
     """
     return os.path.exists(directory) and os.path.isdir(directory)
