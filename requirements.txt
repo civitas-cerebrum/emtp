@@ -9,7 +9,7 @@ aiohttp==3.13.3
 --extra-index-url https://download.pytorch.org/whl/cu128
 
 # Core ML Stack (Unchanged)
-torch==2.7.0+cu128
+torch==2.10.0+cu128
 torchvision==0.22.0+cu128
 torchaudio==2.7.0+cu128
 bitsandbytes==0.45.3
