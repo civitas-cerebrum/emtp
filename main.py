@@ -17,11 +17,11 @@ import asyncio # Import asyncio
 from dataset.acquisition import retrieve_url_stage
 from dataset.acquisition.save_datasource.main import main as save_datasource_stage
 from dataset.enrichment.dataset_generation import main as generate_qna_dataset
-from util.utilities import getConfig, getLogger, set_verbose
+from util.utilities import getConfig, getLogger, set_verbose, is_verbose
 
 
 config = getConfig()
-log = getLogger(__name__)   
+log = getLogger(__name__, verbose=False)   
 
 def ensure_dir(path):
     """
@@ -264,10 +264,8 @@ async def main():
     # Determine verbose logging from --log-level or --verbose
     verbose_logging = args.verbose or (args.log_level == 'DEBUG')
 
-    # Configure logging based on verbose flag
-    logging_level = logging.DEBUG if verbose_logging else logging.INFO
-    logging.basicConfig(level=logging_level, format='%(asctime)s - %(levelname)s - %(message)s')
-    log.setLevel(logging_level) # Set our specific log as well
+    set_verbose(verbose_logging)
+    log.info(f"Logging level set to {is_verbose()}. Verbose logging {'enabled' if verbose_logging else 'disabled'}.")
 
     if args.stage:
         # Non-interactive mode
