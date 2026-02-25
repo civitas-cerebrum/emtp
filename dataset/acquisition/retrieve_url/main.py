@@ -23,8 +23,10 @@ def search_and_save_urls(
     """
     os.makedirs(base_output_dir, exist_ok=True)
 
+    log.info(f"Searching for: {len(questions_data)} categories with {search_result_count} results each.")
+
     if dorks:
-        log.info(f"Using dorks: {dorks}")
+        log.debug(f"Using dorks: {dorks}")
 
     for category, questions in questions_data.items():
         log.debug(f"Processing category: {category}")

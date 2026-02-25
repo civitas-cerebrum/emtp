@@ -17,11 +17,11 @@ import asyncio # Import asyncio
 from dataset.acquisition import retrieve_url_stage
 from dataset.acquisition.save_datasource.main import main as save_datasource_stage
 from dataset.enrichment.dataset_generation import main as generate_qna_dataset
+from util.utilities import getConfig, getLogger, set_verbose
 
 
-# Set up a more flexible logger
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO) # Default to INFO
+config = getConfig()
+log = getLogger(__name__)   
 
 def ensure_dir(path):
     """
@@ -57,9 +57,10 @@ def aggregate_metadata_to_file(metadata_entries: List[Dict[str, Any]], output_pa
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(final_output, f, indent=4)
-        logger.info(f"Metadata aggregated and saved to {output_path}. Content preview: {json.dumps(final_output[:1] if final_output else [], indent=2)}...") # Preview first entry
+        log.info(f"Metadata aggregated and saved to {output_path}.") # Preview first entry
+        log.debug(f"Content preview: {json.dumps(final_output[:1] if final_output else [], indent=2)}...") # Preview first entry
     except Exception as e:
-        logger.error(f"Error aggregating metadata to file {output_path}: {e}")
+        log.error(f"Error aggregating metadata to file {output_path}: {e}")
 
 
 def print_pipeline_report(urls_dir, datasources_dir, qa_file='qna_dataset.json'):
@@ -107,60 +108,63 @@ def print_pipeline_report(urls_dir, datasources_dir, qa_file='qna_dataset.json')
                 pass
 
         # Print ASCII report
-        print("\n" + "="*60)
-        print("                    EMTP PIPELINE REPORT")
-        print("="*60)
-        print(f"  📊 URLs Retrieved:     {urls_count}")
-        print(f"  📄 Markdown Files:     {markdown_count}")
-        print(f"  ❓ Q&A Pairs Generated: {qa_count}")
-        print("="*60)
-        print("  ✅ Pipeline completed successfully!")
-        print("="*60)
+        log.info("\n" + "="*60)
+        log.info("                    EMTP PIPELINE REPORT")
+        log.info("="*60)
+        log.info(f"  📊 URLs Retrieved:     {urls_count}")
+        log.info(f"  📄 Markdown Files:     {markdown_count}")
+        log.info(f"  ❓ Q&A Pairs Generated: {qa_count}")
+        log.info("="*60)
+        log.info("  ✅ Pipeline completed successfully!")
+        log.info("="*60)
 
     except Exception as e:
-        print(f"Note: Could not generate detailed report ({e})")
+        log.info(f"Note: Could not generate detailed report ({e})")
 
 def run_url_retrieval(questions_file='sample.json', output_dir='dataset/acquisition/temp/urls', verbose: bool = False, dorks: str = None):
     # Executes the URL retrieval stage.
     # Fetches URLs from questions and saves them to the output directory.
-    print(f"🔍 Starting URL retrieval...")
-    print(f"  Input: {questions_file}")
-    print(f"  Output: {output_dir}")
+    
+    if verbose:
+        set_verbose(True)
+    
+    log.info(f"🔍 Starting URL retrieval...")
+    log.info(f"  Input: {questions_file}")
+    log.info(f"  Output: {output_dir}")
     ensure_dir(output_dir)
-    # Assuming retrieve_url_stage accepts a verbose argument
     # Extract just the filename if a full path is provided
     filename_only = os.path.basename(questions_file)
-    retrieve_url_stage(output_dir=output_dir, questions_file=filename_only, verbose=verbose, dorks=dorks)
-    print(f"✅ URL retrieval completed! Results saved to {output_dir}")
+    retrieve_url_stage(output_dir=output_dir, questions_file=filename_only, dorks=dorks)
+    log.info(f"✅ URL retrieval completed! Results saved to {output_dir}")
 
 def run_datasource_capture(input_dir='dataset/acquisition/temp/urls', output_dir='dataset/acquisition/temp/datasources', verbose: bool = False) -> List[Dict[str, Any]]:
     """
     Converts URLs into markdown datasources.
     Returns metadata for the captured data.
     """
-    print(f"📸 Starting datasource capture...")
-    print(f"  Input: {input_dir}")
-    print(f"  Output: {output_dir}")
+    log.info(f"📸 Starting datasource capture...")
+    log.info(f"  Input: {input_dir}")
+    log.info(f"  Output: {output_dir}")
     ensure_dir(output_dir)
     # save_datasource_stage is now synchronous
     collected_metadata = save_datasource_stage(input_dir=input_dir, output_dir=output_dir, verbose=verbose)
-    print(f"✅ Datasource capture completed! Data sources saved to {output_dir}")
+    log.info(f"✅ Datasource capture completed! Data sources saved to {output_dir}")
     return collected_metadata
 
 def run_datasource_processing(input_dir='dataset/acquisition/temp/datasources', output_dir='dataset/acquisition/temp/text_data', verbose: bool = False, accurate: bool = False):
     # Placeholder for processing captured datasources into text data.
     # This stage is not yet fully implemented.
-    print(f"🔄 Starting datasource processing...")
-    print(f"  Input: {input_dir}")
-    print(f"  Output: {output_dir}")
+    log.info(f"🔄 Starting datasource processing...")
+    log.info(f"  Input: {input_dir}")
+    log.info(f"  Output: {output_dir}")
     ensure_dir(output_dir)
     datasource_processing_stage(input_dir, output_dir, verbose=verbose, accurate=accurate) # Positional arguments
-    print(f"✅ Datasource processing completed! Text data saved to {output_dir}")
+    log.info(f"✅ Datasource processing completed! Text data saved to {output_dir}")
 
 async def run_semi_sythetic_data_generation(metadata_entries: List[Dict[str, Any]], markdown_base_dir='dataset/acquisition/temp/datasources', base_url="http://localhost:8080/api/generate", model_name="gemma3:27b", authorization_token=None):
     # Generates Q&A data from markdown and updates metadata.
     # Aggregates results and saves them to a JSON file.
-    print(f"🤖 Starting semi-synthetic data generation and metadata aggregation...")
+    log.info(f"🤖 Starting semi-synthetic data generation and metadata aggregation...")
     
     # Generate Q&A dataset
     # Pass the full path to the markdown files to qa_generation.generate_qna_dataset
@@ -169,13 +173,13 @@ async def run_semi_sythetic_data_generation(metadata_entries: List[Dict[str, Any
     qna_dataset = generate_qna_dataset()
 
     if qna_dataset:
-        print(f"Generated {len(qna_dataset)} Q&A pairs.")
+        log.info(f"Generated {len(qna_dataset)} Q&A pairs.")
         qna_output_path = os.path.join(markdown_base_dir, "qna_dataset.json")
         with open(qna_output_path, "w", encoding="utf-8") as f:
             json.dump(qna_dataset, f, indent=4)
-        print(f"Q&A dataset saved to {qna_output_path}")
+        log.info(f"Q&A dataset saved to {qna_output_path}")
     else:
-        print("Failed to generate Q&A dataset.")
+        log.error("Failed to generate Q&A dataset.")
 
     # Update question counts in metadata (assuming 'questionCount' can now reflect actual Q&A pairs)
     # This part might need refinement depending on how questionCount is truly intended to be used.
@@ -191,22 +195,22 @@ async def run_semi_sythetic_data_generation(metadata_entries: List[Dict[str, Any
     output_scheme_path = os.path.join(markdown_base_dir, "datasource_metadata.json")
     aggregate_metadata_to_file(updated_metadata, output_scheme_path)
 
-    print(f"✅ Semi-synthetic data generation and metadata aggregation completed! Results saved to {output_scheme_path}")
+    log.info(f"✅ Semi-synthetic data generation and metadata aggregation completed! Results saved to {output_scheme_path}")
 
 
 def get_user_choice():
     # Displays the main menu and prompts user for a stage choice.
     # Ensures a valid selection is made from the available options.
-    print("\n" + "="*50)
-    print("EMTP Data Acquisition Pipeline")
-    print("="*50)
-    print("Choose a stage to run:")
-    print("1. URL Retrieval (from questions to URLs)")
-    print("2. Datasource Capture (from URLs to markdown data sources)")
-    print("3. Q&A Generation (from markdown data sources to Q&A dataset)")
-    print("4. Run Full Pipeline (all stages)")
-    print("5. Exit")
-    print("="*50)
+    log.info("\n" + "="*50)
+    log.info("EMTP Data Acquisition Pipeline")
+    log.info("="*50)
+    log.info("Choose a stage to run:")
+    log.info("1. URL Retrieval (from questions to URLs)")
+    log.info("2. Datasource Capture (from URLs to markdown data sources)")
+    log.info("3. Q&A Generation (from markdown data sources to Q&A dataset)")
+    log.info("4. Run Full Pipeline (all stages)")
+    log.info("5. Exit")
+    log.info("="*50)
 
     while True:
         try:
@@ -214,9 +218,9 @@ def get_user_choice():
             if choice in ['1', '2', '3', '4', '5']:
                 return choice
             else:
-                print("Invalid choice. Please enter 1, 2, 3, 4, or 5.")
+                log.info("Invalid choice. Please enter 1, 2, 3, 4, or 5.")
         except KeyboardInterrupt:
-            print("\nExiting...")
+            log.info("\nExiting...")
             return '5' # Changed to '5' for exit
 
 def get_path_input(prompt, default):
@@ -233,7 +237,7 @@ def get_log_level_input():
         if log_level_str in ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL', '']:
             return log_level_str if log_level_str else 'INFO'
         else:
-            print("Invalid log level. Please choose from DEBUG, INFO, WARNING, ERROR, CRITICAL.")
+            log.info("Invalid log level. Please choose from DEBUG, INFO, WARNING, ERROR, CRITICAL.")
 
 async def main():
     # Main entry point for the EMTP pipeline.
@@ -263,7 +267,7 @@ async def main():
     # Configure logging based on verbose flag
     logging_level = logging.DEBUG if verbose_logging else logging.INFO
     logging.basicConfig(level=logging_level, format='%(asctime)s - %(levelname)s - %(message)s')
-    logger.setLevel(logging_level) # Set our specific logger as well
+    log.setLevel(logging_level) # Set our specific log as well
 
     if args.stage:
         # Non-interactive mode
@@ -271,7 +275,7 @@ async def main():
             run_url_retrieval(args.questions_file, args.urls_output_dir, verbose=verbose_logging, dorks=args.dorks)
         elif args.stage == 'datasource_capture':
             collected_metadata = run_datasource_capture(args.urls_output_dir, args.datasources_output_dir, verbose=verbose_logging)
-            logger.debug(f"Collected metadata count after datasource capture: {len(collected_metadata)}")
+            log.debug(f"Collected metadata count after datasource capture: {len(collected_metadata)}")
             # Save initial metadata before Q&A generation
             initial_metadata_path = os.path.join(args.datasources_output_dir, "datasource_metadata.json")
             aggregate_metadata_to_file(collected_metadata, initial_metadata_path)
@@ -286,21 +290,20 @@ async def main():
         elif args.stage == 'qa_generation':
             # This path is now deprecated as qa_generation is integrated into datasource_capture in non-interactive mode.
             # However, if run separately, it expects metadata input.
-            logger.info("To run 'qa_generation' separately, you need to provide metadata entries from a previous 'datasource_capture' run.")
-            logger.info("Please run the 'full_pipeline' stage or use the interactive mode.")
+            log.info("To run 'qa_generation' separately, you need to provide metadata entries from a previous 'datasource_capture' run.")
+            log.info("Please run the 'full_pipeline' stage or use the interactive mode.")
             return
         elif args.stage == 'full_pipeline':
-            logger.info("Running full pipeline...")
+            log.info("Running full pipeline...")
             run_url_retrieval(args.questions_file, args.urls_output_dir, verbose=verbose_logging, dorks=args.dorks)
             # Load config for API parameters
-            config = configparser.ConfigParser()
-            config.read('config.ini')
-            base_url = config['DEFAULT']['base_url']
+            config = getConfig()
+            base_url = config['DEFAULT']['owui_base_url']
             model_name = config['DEFAULT']['model_name']
             authorization_token = config['DEFAULT'].get('authorization_token', None) # Use .get for optional values
 
             collected_metadata = run_datasource_capture(args.urls_output_dir, args.datasources_output_dir, verbose=verbose_logging)
-            logger.debug(f"Collected metadata count after datasource capture (full_pipeline): {len(collected_metadata)}")
+            log.debug(f"Collected metadata count after datasource capture (full_pipeline): {len(collected_metadata)}")
             
             # Save initial metadata before Q&A generation
             initial_metadata_path = os.path.join(args.datasources_output_dir, "datasource_metadata.json")
@@ -308,26 +311,26 @@ async def main():
 
             await run_semi_sythetic_data_generation(collected_metadata, args.datasources_output_dir, base_url, model_name, authorization_token)
 
-            logger.info("🎉 Full pipeline completed!")
-            logger.info(f"Intermediate URLs saved to: {args.urls_output_dir}")
-            logger.info(f"Intermediate data sources saved to: {args.datasources_output_dir}")
-            logger.info(f"Final datasource_scheme.json generated in: {args.datasources_output_dir}")
+            log.info("🎉 Full pipeline completed!")
+            log.info(f"Intermediate URLs saved to: {args.urls_output_dir}")
+            log.info(f"Intermediate data sources saved to: {args.datasources_output_dir}")
+            log.info(f"Final datasource_scheme.json generated in: {args.datasources_output_dir}")
             # Correctly pass the path to qna_dataset.json for the report
             print_pipeline_report(args.urls_output_dir, args.datasources_output_dir, os.path.join(args.datasources_output_dir, "qna_dataset.json"))
     else:
         # Interactive mode
-        logger.info("Welcome to EMTP Data Acquisition Pipeline!")
+        log.info("Welcome to EMTP Data Acquisition Pipeline!")
         while True:
             choice = get_user_choice()
 
             if choice == '5':
-                logger.info("Goodbye!")
+                log.info("Goodbye!")
                 break
             
             log_level_str = get_log_level_input()
             logging_level = getattr(logging, log_level_str.upper(), logging.INFO)
-            logging.getLogger().setLevel(logging_level)
-            logger.setLevel(logging_level)
+            logging.getlog().setLevel(logging_level)
+            log.setLevel(logging_level)
             verbose_logging = (logging_level == logging.DEBUG)
 
             if choice == '1':
@@ -356,13 +359,13 @@ async def main():
 
             elif choice == '3':
                 # Q&A Generation - In interactive mode, this implies running it after a datasource capture
-                logger.info("Running Q&A Generation requires metadata from a datasource capture stage.")
-                logger.info("Please run stage 2 (Datasource Capture) first, which will now automatically perform Q&A Generation.")
+                log.info("Running Q&A Generation requires metadata from a datasource capture stage.")
+                log.info("Please run stage 2 (Datasource Capture) first, which will now automatically perform Q&A Generation.")
                 # We can add more sophisticated logic here if a user wants to load existing markdown and generate Q&A
                 # but for now, we direct them to the full pipeline or combined stage 2.
             elif choice == '4':
                 # Full Pipeline
-                logger.info("Running full pipeline...")
+                log.info("Running full pipeline...")
 
                 # Get input path
                 questions_file = get_path_input("Questions file path", "sample.json")
@@ -376,7 +379,7 @@ async def main():
 
                 # Run datasource capture
                 collected_metadata = run_datasource_capture(urls_temp, datasources_temp, verbose=verbose_logging)
-                logger.debug(f"Collected metadata count after datasource capture (interactive full_pipeline): {len(collected_metadata)}")
+                log.debug(f"Collected metadata count after datasource capture (interactive full_pipeline): {len(collected_metadata)}")
                 
                 # Save initial metadata before Q&A generation
                 initial_metadata_path = os.path.join(datasources_temp, "datasource_metadata.json")
@@ -392,10 +395,10 @@ async def main():
                 # Run Q&A generation directly on collected metadata and markdown files
                 await run_semi_sythetic_data_generation(collected_metadata, datasources_temp, base_url, model_name, authorization_token)
 
-                logger.info("🎉 Full pipeline completed!")
-                logger.info(f"Intermediate URLs saved to: {urls_temp}")
-                logger.info(f"Intermediate data sources saved to: {datasources_temp}")
-                logger.info(f"Final datasource_scheme.json generated in: {datasources_temp}")
+                log.info("🎉 Full pipeline completed!")
+                log.info(f"Intermediate URLs saved to: {urls_temp}")
+                log.info(f"Intermediate data sources saved to: {datasources_temp}")
+                log.info(f"Final datasource_scheme.json generated in: {datasources_temp}")
                 print_pipeline_report(urls_temp, datasources_temp, os.path.join(datasources_temp, "qna_dataset.json"))
 
 if __name__ == "__main__":
