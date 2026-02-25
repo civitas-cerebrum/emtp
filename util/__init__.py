@@ -1,4 +1,4 @@
-from .utilities import getEmtpDirectory, getConfig, getLogger
+from .utilities import get_emtp_directory, get_config, get_logger
 from .ollama.file_upload import upload_file
 
-__all__ = ["getEmtpDirectory", "getConfig", "upload_file", "getLogger"]
+__all__ = ["get_emtp_directory", "get_config", "upload_file", "get_logger"]

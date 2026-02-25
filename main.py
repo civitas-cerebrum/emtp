@@ -17,11 +17,11 @@ import asyncio # Import asyncio
 from dataset.acquisition import retrieve_url_stage
 from dataset.acquisition.save_datasource.main import main as save_datasource_stage
 from dataset.enrichment.dataset_generation import main as generate_qna_dataset
-from util.utilities import getConfig, getLogger, set_verbose, is_verbose
+from util.utilities import get_config, get_logger, set_verbose, is_verbose
 
 
-config = getConfig()
-log = getLogger(__name__, verbose=False)   
+config = get_config()
+log = get_logger(__name__)   
 
 def ensure_dir(path):
     """
@@ -295,7 +295,7 @@ async def main():
             log.info("Running full pipeline...")
             run_url_retrieval(args.questions_file, args.urls_output_dir, verbose=verbose_logging, dorks=args.dorks)
             # Load config for API parameters
-            config = getConfig()
+            config = get_config()
             base_url = config['DEFAULT']['owui_base_url']
             model_name = config['DEFAULT']['model_name']
             authorization_token = config['DEFAULT'].get('authorization_token', None) # Use .get for optional values

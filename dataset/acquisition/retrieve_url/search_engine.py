@@ -1,10 +1,10 @@
 import logging
 
 from ddgs import DDGS
-from util.utilities import getConfig, getLogger, is_verbose
+from util.utilities import get_config, get_logger, is_verbose
 
-config = getConfig()
-log = getLogger(__name__)
+config = get_config()
+log = get_logger(__name__)
 
 
 def search_question(category, question_text, dorks=None, search_result_count=10):

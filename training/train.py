@@ -8,10 +8,10 @@ from trl import SFTTrainer, SFTConfig
 from peft import PeftModel, LoraConfig
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModelForImageTextToText, BitsAndBytesConfig
 
-from util.utilities import getConfig, getLogger, getEmtpDirectory
+from util.utilities import get_config, get_logger, get_emtp_directory
 
-config = getConfig()
-log = getLogger(__name__)
+config = get_config()
+log = get_logger(__name__)
 
 
 def load_and_format_dataset(file_path: str, system_message: str) -> List[Dict]:
@@ -67,7 +67,7 @@ def train_model(
     )
     log.info(f"System Prompt: {system_prompt}")
 
-    dataset_path = os.path.join(getEmtpDirectory(), dataset_path)
+    dataset_path = os.path.join(get_emtp_directory(), dataset_path)
     formatted_data = load_and_format_dataset(dataset_path, system_prompt)
 
     if not formatted_data:

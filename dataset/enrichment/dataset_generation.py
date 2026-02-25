@@ -3,10 +3,10 @@ import json
 import requests
 from typing import Optional
 
-from util.utilities import getConfig, getLogger, getEmtpDirectory
+from util.utilities import get_config, get_logger, get_emtp_directory
 
-config = getConfig()
-log = getLogger(__name__)
+config = get_config()
+log = get_logger(__name__)
 
 
 def generate_qna_dataset(
@@ -159,7 +159,7 @@ def main(
     """
 
     base_url = owui_base_url + ollama_uri
-    scraped_content_dir = os.path.join(getEmtpDirectory(), scraped_content_dir)
+    scraped_content_dir = os.path.join(get_emtp_directory(), scraped_content_dir)
 
     dataset = generate_qna_dataset(
         prompt=dataset_prompt_template,

@@ -2,10 +2,10 @@ import json
 import time
 import requests
 from typing import Optional, List, Dict
-from util.utilities import getConfig, getLogger
+from util.utilities import get_config, get_logger
 
-config = getConfig()
-log = getLogger(__name__)
+config = get_config()
+log = get_logger(__name__)
 
 
 def categorise_questions(

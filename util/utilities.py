@@ -6,7 +6,7 @@ from typing import Optional
 _CONFIG_CACHE: Optional[configparser.ConfigParser] = None
 debug_enabled = False
 
-def getEmtpDirectory() -> Path:
+def get_emtp_directory() -> Path:
     """Find and return the path to the 'emtp' directory."""
     # Resolve gets the absolute path. parents explores upwards.
     current = Path(__file__).resolve()
@@ -18,13 +18,13 @@ def getEmtpDirectory() -> Path:
             
     raise FileNotFoundError("Project root (with 'emtp' folder) not found.")
 
-def getConfig(config_name: str = "config.ini") -> configparser.ConfigParser:
+def get_config(config_name: str = "config.ini") -> configparser.ConfigParser:
     """Read and return the configuration file (cached)."""
     global _CONFIG_CACHE
     if _CONFIG_CACHE is not None:
         return _CONFIG_CACHE
 
-    config_path = getEmtpDirectory() / config_name
+    config_path = get_emtp_directory() / config_name
     if not config_path.exists():
         raise FileNotFoundError(f"Configuration file not found at: {config_path}")
 
@@ -36,7 +36,7 @@ def getConfig(config_name: str = "config.ini") -> configparser.ConfigParser:
 def initialize_debug_setting():
     """Initialize the debug setting from config file."""
     global debug_enabled
-    config = getConfig()
+    config = get_config()
     debug_enabled = config.getboolean("DEFAULT", "debug_logs", fallback=False)
 
     logging.basicConfig(
@@ -64,7 +64,7 @@ def set_verbose(verbose: bool):
     if verbose:
         app_logger.debug("Debug logging enabled.")
 
-def getLogger(name: str = __name__, verbose: Optional[bool] = None) -> logging.Logger:
+def get_logger(name: str = __name__, verbose: Optional[bool] = None) -> logging.Logger:
     """Get a configured logger."""
     if not name.startswith("emtp.") and name != "emtp":
         name = f"emtp.{name}"

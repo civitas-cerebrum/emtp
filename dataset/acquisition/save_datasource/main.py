@@ -18,10 +18,10 @@ import requests
 
 from .file_finder import find_json_files, validate_directory
 from .json_parser import extract_urls_from_json_file
-from util.utilities import getConfig, getLogger
+from util.utilities import get_config, get_logger
 
-config = getConfig()
-log = getLogger(__name__)
+config = get_config()
+log = get_logger(__name__)
 
 
 def create_output_path(input_file: str, url: str, input_dir: str, output_dir: str) -> str:
@@ -179,7 +179,7 @@ def main(input_dir='dataset/acquisition/temp/urls', output_dir='dataset/acquisit
     log.setLevel(logging.DEBUG if verbose else logging.INFO)
 
     # Read configuration
-    config = getConfig()
+    config = get_config()
 
     # Get Firecrawl settings from config
     firecrawl_url = config.get('DEFAULT', 'firecrawl_url', fallback='http://localhost:3002')
