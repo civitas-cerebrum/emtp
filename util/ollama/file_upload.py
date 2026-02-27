@@ -1,4 +1,4 @@
-from ..utilities import getConfig
+from ..utilities import get_config
 import requests
 import time
 from typing import IO, Optional, Dict, Any
@@ -76,7 +76,7 @@ def upload_file(
 
 def main(config=None, file_path="generic-questions.json"):
     if config is None:
-        config = getConfig()
+        config = get_config()
 
     owui_base_url = config["DEFAULT"]["owui_base_url"]
     ollama_uri = config["DEFAULT"]["ollama_uri"]

@@ -5,10 +5,10 @@ import os
 from typing import Optional
 from .data_loader import get_questions
 from .search_engine import search_question  
-from util.utilities import getConfig, getLogger
+from util.utilities import get_config, get_logger
 
-config = getConfig()
-log = getLogger(__name__)
+config = get_config()
+log = get_logger(__name__)
 
 
 def search_and_save_urls(
@@ -23,8 +23,10 @@ def search_and_save_urls(
     """
     os.makedirs(base_output_dir, exist_ok=True)
 
+    log.info(f"Searching for: {len(questions_data)} categories with {search_result_count} results each.")
+
     if dorks:
-        log.info(f"Using dorks: {dorks}")
+        log.debug(f"Using dorks: {dorks}")
 
     for category, questions in questions_data.items():
         log.debug(f"Processing category: {category}")

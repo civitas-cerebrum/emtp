@@ -5,10 +5,10 @@ import requests
 from typing import Optional
 from .question_categorisation import main as categorise_questions
 from ..acquisition import retrieve_url_stage, save_datasource_stage
-from util.utilities import getConfig, getLogger, getEmtpDirectory
+from util.utilities import get_config, get_logger, get_emtp_directory
 
-config = getConfig()
-log = getLogger(__name__)
+config = get_config()
+log = get_logger(__name__)
 
 
 def generate_questions(
@@ -137,7 +137,7 @@ def main(
         categorised_questions_file=categorised_questions_file,
     )
 
-    question_path = os.path.join(getEmtpDirectory(), categorised_questions_file)
+    question_path = os.path.join(get_emtp_directory(), categorised_questions_file)
 
     retrieve_url_stage(questions_file=question_path)
     save_datasource_stage()

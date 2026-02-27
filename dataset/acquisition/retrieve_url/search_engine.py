@@ -1,8 +1,10 @@
-from ddgs import DDGS
-from util.utilities import getConfig, getLogger
+import logging
 
-config = getConfig()
-log = getLogger(__name__)
+from ddgs import DDGS
+from util.utilities import get_config, get_logger, is_verbose
+
+config = get_config()
+log = get_logger(__name__)
 
 
 def search_question(category, question_text, dorks=None, search_result_count=10):
@@ -32,6 +34,12 @@ def search_question(category, question_text, dorks=None, search_result_count=10)
         search_query = f"{question} {question_dorks}"
 
     log.debug(f"Searching for: {search_query}")
+    if not is_verbose():
+        primp_logger = logging.getLogger("primp")
+        primp_logger.setLevel(logging.ERROR)
+        httpx_logger = logging.getLogger("httpx")
+        httpx_logger.setLevel(logging.ERROR)
+
     try:
         with DDGS() as ddgs:
             results = list(ddgs.text(search_query, max_results=search_result_count))

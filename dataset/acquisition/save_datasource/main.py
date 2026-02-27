@@ -18,9 +18,10 @@ import requests
 
 from .file_finder import find_json_files, validate_directory
 from .json_parser import extract_urls_from_json_file
+from util.utilities import get_config, get_logger
 
-# Use the global logger configuration
-logger = logging.getLogger(__name__)
+config = get_config()
+log = get_logger(__name__)
 
 
 def create_output_path(input_file: str, url: str, input_dir: str, output_dir: str) -> str:
@@ -68,7 +69,7 @@ def scrape_urls_batch(urls: List[str], base_url: str = "http://localhost:3002", 
     failed_count = 0
     total_urls = len(urls)
 
-    logger.info(f"Starting batch scrape of {total_urls} URLs using Firecrawl at {base_url}...")
+    log.info(f"Starting batch scrape of {total_urls} URLs using Firecrawl at {base_url}...")
 
     headers = {"Content-Type": "application/json"}
     if firecrawl_user and firecrawl_pass:
@@ -76,7 +77,7 @@ def scrape_urls_batch(urls: List[str], base_url: str = "http://localhost:3002", 
         auth_string = f"{firecrawl_user}:{firecrawl_pass}"
         encoded_auth = base64.b64encode(auth_string.encode()).decode()
         headers["Authorization"] = f"Basic {encoded_auth}"
-        logger.debug("Using basic authentication for Firecrawl")
+        log.debug("Using basic authentication for Firecrawl")
 
     # Step 1: Submit batch scrape job
     try:
@@ -94,17 +95,17 @@ def scrape_urls_batch(urls: List[str], base_url: str = "http://localhost:3002", 
         batch_data = batch_response.json()
 
         if not batch_data.get('success') or 'id' not in batch_data:
-            logger.error(f"Failed to submit batch job: {batch_data.get('message', 'Unknown error')}")
+            log.error(f"Failed to submit batch job: {batch_data.get('message', 'Unknown error')}")
             return {"success": 0, "failed": total_urls, "data": []}
 
         job_id = batch_data['id']
-        logger.info(f"Batch job submitted. Job ID: {job_id}. Polling for results...")
+        log.debug(f"Batch job submitted. Job ID: {job_id}. Polling for results...")
 
     except requests.exceptions.RequestException as e:
-        logger.error(f"Error submitting batch job to Firecrawl: {e}")
+        log.error(f"Error submitting batch job to Firecrawl: {e}")
         return {"success": 0, "failed": total_urls, "data": []}
     except Exception as e:
-        logger.error(f"Unexpected error submitting batch job: {e}")
+        log.error(f"Unexpected error submitting batch job: {e}")
         return {"success": 0, "failed": total_urls, "data": []}
 
     # Step 2: Poll for job status
@@ -117,7 +118,7 @@ def scrape_urls_batch(urls: List[str], base_url: str = "http://localhost:3002", 
             status_data = status_response.json()
 
             current_status = status_data.get('status')
-            logger.info(f"Batch job {job_id} status: {current_status}")
+            log.debug(f"Batch job {job_id} status: {current_status}")
 
             if current_status == "completed":
                 # Step 3: Process results
@@ -135,30 +136,30 @@ def scrape_urls_batch(urls: List[str], base_url: str = "http://localhost:3002", 
                                 })
                             }
                             successful_results.append(formatted_result)
-                            logger.debug(f"Successfully scraped: {url}")
+                            log.debug(f"Successfully scraped: {url}")
                         else:
                             failed_count += 1
-                            logger.warning(f"No markdown content found for: {url}")
+                            log.warning(f"No markdown content found for: {url}")
                 else:
-                    logger.warning(f"Batch job {job_id} completed, but no data received.")
+                    log.warning(f"Batch job {job_id} completed, but no data received.")
                 break # Exit loop if completed
             elif current_status in ["active", "pending", "scraping"]:
                 time.sleep(5) # Wait 5 seconds before polling again
             else:
-                logger.error(f"Batch job {job_id} failed or returned unexpected status: {current_status}")
+                log.error(f"Batch job {job_id} failed or returned unexpected status: {current_status}")
                 failed_count = total_urls - len(successful_results)
                 break
 
         except requests.exceptions.RequestException as e:
-            logger.error(f"Error polling batch job status for {job_id}: {e}")
+            log.error(f"Error polling batch job status for {job_id}: {e}")
             failed_count = total_urls - len(successful_results)
             break
         except Exception as e:
-            logger.error(f"Unexpected error during batch job status polling: {e}")
+            log.error(f"Unexpected error during batch job status polling: {e}")
             failed_count = total_urls - len(successful_results)
             break
 
-    logger.info(f"Batch scrape completed. Success: {len(successful_results)}, Failed: {failed_count}")
+    log.info(f"Batch scrape completed. Success: {len(successful_results)}, Failed: {failed_count}")
 
     return {
         "success": len(successful_results),
@@ -175,11 +176,10 @@ def main(input_dir='dataset/acquisition/temp/urls', output_dir='dataset/acquisit
     """
 
     # Set up logging based on verbose flag
-    logger.setLevel(logging.DEBUG if verbose else logging.INFO)
+    log.setLevel(logging.DEBUG if verbose else logging.INFO)
 
     # Read configuration
-    config = configparser.ConfigParser()
-    config.read('config.ini')
+    config = get_config()
 
     # Get Firecrawl settings from config
     firecrawl_url = config.get('DEFAULT', 'firecrawl_url', fallback='http://localhost:3002')
@@ -191,31 +191,31 @@ def main(input_dir='dataset/acquisition/temp/urls', output_dir='dataset/acquisit
         firecrawl_url = 'http://localhost:3002'
         firecrawl_user = ''
         firecrawl_pass = ''
-        logger.info("Forcing local Firecrawl instance usage")
+        log.debug("Forcing local Firecrawl instance usage")
 
-    logger.debug(f"Firecrawl URL: {firecrawl_url}")
+    log.debug(f"Firecrawl URL: {firecrawl_url}")
     if firecrawl_user:
-        logger.debug("Using authentication for Firecrawl")
+        log.debug("Using authentication for Firecrawl")
 
     # Validate input directory
     if not validate_directory(input_dir):
-        logger.error(f"Input directory does not exist or is not a directory: {input_dir}")
+        log.error(f"Input directory does not exist or is not a directory: {input_dir}")
         return []
 
     # Create output directory if it doesn't exist
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    logger.debug("Starting Firecrawl webpage scraper")
-    logger.debug(f"Input directory: {input_dir}")
-    logger.debug(f"Output directory: {output_dir}")
+    log.debug("Starting Firecrawl webpage scraper")
+    log.debug(f"Input directory: {input_dir}")
+    log.debug(f"Output directory: {output_dir}")
 
     try:
         # Find all JSON files
         json_files = find_json_files(input_dir)
-        logger.debug(f"Found {len(json_files)} JSON files in '{input_dir}'")
+        log.debug(f"Found {len(json_files)} JSON files in '{input_dir}'")
 
         if not json_files:
-            logger.warning("No JSON files found in input directory. Exiting.")
+            log.warning("No JSON files found in input directory. Exiting.")
             return []
 
         # Collect all URLs and their associated metadata from all JSON files
@@ -238,19 +238,19 @@ def main(input_dir='dataset/acquisition/temp/urls', output_dir='dataset/acquisit
                             "input_file": json_file
                         }
                     else:
-                        logger.info(f"Skipping PDF URL (not supported by Firecrawl batch scraping): {url}")
+                        log.debug(f"Skipping PDF URL (not supported by Firecrawl batch scraping): {url}")
             except Exception as e:
-                logger.error(f"Error reading JSON file {json_file}: {e}")
+                log.error(f"Error reading JSON file {json_file}: {e}")
 
-        logger.debug(f"Extracted {len(all_urls)} URLs for content scraping.")
+        log.debug(f"Extracted {len(all_urls)} URLs for content scraping.")
         if not all_urls:
-            logger.warning("No URLs found for content scraping. Exiting.")
+            log.warning("No URLs found for content scraping. Exiting.")
             return [] # Return empty list if no URLs
 
         # Remove duplicates while preserving order
         unique_urls = list(dict.fromkeys(all_urls))
         if len(unique_urls) < len(all_urls):
-            logger.info(f"Removed {len(all_urls) - len(unique_urls)} duplicate URLs")
+            log.debug(f"Removed {len(all_urls) - len(unique_urls)} duplicate URLs")
 
         # Perform batch scraping
         batch_result = scrape_urls_batch(unique_urls, firecrawl_url, firecrawl_user, firecrawl_pass)
@@ -274,7 +274,7 @@ def main(input_dir='dataset/acquisition/temp/urls', output_dir='dataset/acquisit
                 with open(markdown_output_path, "w", encoding='utf-8') as f:
                     f.write(scraped_data.get('markdown', ''))
 
-                logger.debug(f"Successfully saved content: {markdown_output_path}")
+                log.debug(f"Successfully saved content: {markdown_output_path}")
 
                 # Prepare metadata for this entry
                 entry_metadata = {
@@ -288,14 +288,14 @@ def main(input_dir='dataset/acquisition/temp/urls', output_dir='dataset/acquisit
                 collected_metadata.append(entry_metadata)
 
             except Exception as e:
-                logger.error(f"Failed to save content or collect metadata for URL {url}: {e}")
+                log.error(f"Failed to save content or collect metadata for URL {url}: {e}")
 
-        logger.info(f"Firecrawl scraper completed. Total URLs processed: {len(unique_urls)}, Successfully scraped: {len(collected_metadata)} URLs.")
+        log.info(f"Firecrawl scraper completed. Total URLs processed: {len(unique_urls)}, Successfully scraped: {len(collected_metadata)} URLs.")
 
         return collected_metadata # Return the list of collected metadata
 
     except Exception as e:
-        logger.critical(f"An unexpected error occurred in Firecrawl scraper: {e}", exc_info=True)
+        log.critical(f"An unexpected error occurred in Firecrawl scraper: {e}", exc_info=True)
         return [] # Return empty list on critical error
 
 
