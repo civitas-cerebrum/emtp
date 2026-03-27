@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Run Trivy vulnerability scanner in repo mode
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: 'fs'
           ignore-unfixed: true
@@ -50,34 +50,52 @@ jobs:
         with:
           sarif_file: 'semgrep.sarif'
       
+      - name: Run tests
+        run: python -m pytest tests/ -v
+
       - name: Generate config.ini with secrets
         env:
-          BASE_URL: ${{ secrets.BASE_URL }}
+          OWUI_BASE_URL: ${{ secrets.BASE_URL }}
+          OLLAMA_URI: ${{ secrets.OLLAMA_URI }}
           MODEL: ${{ secrets.MODEL }}
           AUTH_TOKEN: ${{ secrets.AUTH_TOKEN }}
           DATASET_PROMPT: ${{ vars.DATASET_PROMPT }}
+          Q_GEN_PROMPT: ${{ vars.Q_GEN_PROMPT }}
+          Q_CATEGORISATION_PROMPT: ${{ vars.Q_CATEGORISATION_PROMPT }}
+          DEEP_DIVE_PROMPT: ${{ vars.DEEP_DIVE_PROMPT }}
+          CONVERSATION_PROMPT: ${{ vars.CONVERSATION_PROMPT }}
           FIRECRAWL_URL: ${{ secrets.FIRECRAWL_URL }}
           FIRECRAWL_USER: ${{ secrets.FIRECRAWL_USER }}
           FIRECRAWL_PASS: ${{ secrets.FIRECRAWL_PASS }}
         run: |
-          # Create config using printf with environment variables
-          printf "[DEFAULT]\n" > config.ini
-          printf "model_expertise = Quality Assurance\n" >> config.ini
-          printf "input_dir = dataset/acquisition/temp/datasources\n" >> config.ini
-          printf "base_url = %s\n" "$BASE_URL" >> config.ini
-          printf "model_name = %s\n" "$MODEL" >> config.ini
-          printf "authorization_token = %s\n" "$AUTH_TOKEN" >> config.ini
-          printf "dataset_prompt = %s\n" "$DATASET_PROMPT" >> config.ini
-          printf "firecrawl_url = %s\n" "$FIRECRAWL_URL" >> config.ini
-          printf "firecrawl_user = %s\n" "$FIRECRAWL_USER" >> config.ini
-          printf "firecrawl_pass = %s\n" "$FIRECRAWL_PASS" >> config.ini
-          
+          cat > config.ini << CFGEOF
+          [DEFAULT]
+          model_expertise = Quality Assurance
+          debug_logs = False
+          request_timeout = 300
+          input_dir = dataset/acquisition/temp/datasources
+          owui_base_url = ${OWUI_BASE_URL}
+          ollama_uri = ${OLLAMA_URI:-ollama/api/generate}
+          owui_files_uri = api/v1/files/
+          model_name = ${MODEL}
+          authorization_token = ${AUTH_TOKEN}
+          dataset_prompt = ${DATASET_PROMPT:-Generate Q&A about {domain_of_expertise}}
+          q_gen_prompt = ${Q_GEN_PROMPT:-Generate questions about {topic}}
+          q_categorisation_prompt = ${Q_CATEGORISATION_PROMPT:-Categorise this question}
+          deep_dive_prompt = ${DEEP_DIVE_PROMPT:-Generate follow-up questions about {domain_of_expertise}}
+          conversation_prompt = ${CONVERSATION_PROMPT:-Convert Q&A pairs about {domain_of_expertise} into a conversation}
+          firecrawl_url = ${FIRECRAWL_URL}
+          firecrawl_user = ${FIRECRAWL_USER}
+          firecrawl_pass = ${FIRECRAWL_PASS}
+          search_result_count = 3
+          conversation_batch_size = 8
+          min_content_length = 200
+          max_content_length = 8000
+          CFGEOF
+
           echo "✅ Generated config.ini"
-          echo "Config file location: $(pwd)/config.ini"
-          
-          # Show config with masked secrets (for debugging)
           echo "=== Config verification (secrets masked) ==="
           sed 's/\(authorization_token\|firecrawl_pass\) = .*/\1 = ***MASKED***/g' config.ini
-      
+
       - name: Run EMTP Pipeline
-        run: python main.py --stage full_pipeline --questions-file dataset/acquisition/retrieve_url/sample.json --verbose
+        run: python main.py --stage full_pipeline --questions-file $(pwd)/dataset/acquisition/retrieve_url/sample.json --skip-deep-dive --verbose
