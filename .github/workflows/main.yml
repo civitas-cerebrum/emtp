@@ -6,7 +6,7 @@ on:
       - main
   pull_request:
 jobs:
-  build-and-run:
+  security:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -14,8 +14,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
-      - name: Run Trivy vulnerability scanner in repo mode
+
+      - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: 'fs'
@@ -23,79 +23,66 @@ jobs:
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
-      
-      - name: Upload Trivy scan results to GitHub Security tab
+
+      - name: Upload Trivy scan results
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
-      
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-      
+          python-version: '3.12'
+
       - name: Install Semgrep CLI
-        run: python3 -m pip install semgrep
-      
+        run: pip install semgrep
+
       - name: Run Semgrep SAST and Secrets Scanning
         run: semgrep scan --sarif --sarif-output=semgrep.sarif
-      
-      - name: Upload Semgrep scan results to GitHub Security tab
+
+      - name: Upload Semgrep scan results
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'semgrep.sarif'
-      
-      - name: Run tests
-        run: python -m pytest tests/ -v
 
-      - name: Generate config.ini with secrets
-        env:
-          OWUI_BASE_URL: ${{ secrets.BASE_URL }}
-          OLLAMA_URI: ${{ secrets.OLLAMA_URI }}
-          MODEL: ${{ secrets.MODEL }}
-          AUTH_TOKEN: ${{ secrets.AUTH_TOKEN }}
-          DATASET_PROMPT: ${{ vars.DATASET_PROMPT }}
-          Q_GEN_PROMPT: ${{ vars.Q_GEN_PROMPT }}
-          Q_CATEGORISATION_PROMPT: ${{ vars.Q_CATEGORISATION_PROMPT }}
-          DEEP_DIVE_PROMPT: ${{ vars.DEEP_DIVE_PROMPT }}
-          CONVERSATION_PROMPT: ${{ vars.CONVERSATION_PROMPT }}
-          FIRECRAWL_URL: ${{ secrets.FIRECRAWL_URL }}
-          FIRECRAWL_USER: ${{ secrets.FIRECRAWL_USER }}
-          FIRECRAWL_PASS: ${{ secrets.FIRECRAWL_PASS }}
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt && pip install pytest
+
+      - name: Generate minimal config.ini for tests
         run: |
-          cat > config.ini << CFGEOF
+          cat > config.ini << 'EOF'
           [DEFAULT]
           model_expertise = Quality Assurance
           debug_logs = False
-          request_timeout = 300
-          input_dir = dataset/acquisition/temp/datasources
-          owui_base_url = ${OWUI_BASE_URL}
-          ollama_uri = ${OLLAMA_URI:-ollama/api/generate}
-          owui_files_uri = api/v1/files/
-          model_name = ${MODEL}
-          authorization_token = ${AUTH_TOKEN}
-          dataset_prompt = ${DATASET_PROMPT:-Generate Q&A about {domain_of_expertise}}
-          q_gen_prompt = ${Q_GEN_PROMPT:-Generate questions about {topic}}
-          q_categorisation_prompt = ${Q_CATEGORISATION_PROMPT:-Categorise this question}
-          deep_dive_prompt = ${DEEP_DIVE_PROMPT:-Generate follow-up questions about {domain_of_expertise}}
-          conversation_prompt = ${CONVERSATION_PROMPT:-Convert Q&A pairs about {domain_of_expertise} into a conversation}
-          firecrawl_url = ${FIRECRAWL_URL}
-          firecrawl_user = ${FIRECRAWL_USER}
-          firecrawl_pass = ${FIRECRAWL_PASS}
-          search_result_count = 3
+          request_timeout = 60
+          owui_base_url = http://localhost:8080/
+          ollama_uri = api/generate
+          model_name = gemma3:4b
+          authorization_token = test-token
+          dataset_prompt = Generate Q&A about {domain_of_expertise}
+          q_gen_prompt = Generate questions about {topic}
+          q_categorisation_prompt = Categorise this question
+          deep_dive_prompt = Generate follow-up questions about {domain_of_expertise}
+          conversation_prompt = Convert Q&A pairs about {domain_of_expertise} into a conversation
+          firecrawl_url = http://localhost:3002
+          search_result_count = 10
           conversation_batch_size = 8
           min_content_length = 200
-          max_content_length = 8000
-          CFGEOF
+          max_content_length = 0
+          EOF
 
-          echo "✅ Generated config.ini"
-          echo "=== Config verification (secrets masked) ==="
-          sed 's/\(authorization_token\|firecrawl_pass\) = .*/\1 = ***MASKED***/g' config.ini
-
-      - name: Run EMTP Pipeline
-        run: python main.py --stage full_pipeline --questions-file $(pwd)/dataset/acquisition/retrieve_url/sample.json --skip-deep-dive --verbose
+      - name: Run tests
+        run: python -m pytest tests/ -v
