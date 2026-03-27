@@ -16,27 +16,40 @@ log = get_logger(__name__)
 
 def load_and_format_dataset(file_path: str, system_message: str) -> List[Dict]:
     """
-    Loads Q&A data from JSON and formats it for TRL training.
+    Loads conversation data from JSON and formats it for TRL training.
+    Supports both new conversation format ({"messages": [...]})
+    and legacy Q&A format ({"q": ..., "a": ...}).
     """
     formatted_data = []
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
-            qa_data = json.load(f)
+            data = json.load(f)
 
-        for idx, item in enumerate(qa_data):
-            question = item.get("q")
-            answer = item.get("a")
-
-            if not question or not answer:
-                log.warning(f"Skipping invalid item at index {idx}. Missing 'q' or 'a': {item}")
-                continue
-
-            conversation = [
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": question},
-                {"role": "assistant", "content": answer}
-            ]
-            formatted_data.append({"messages": conversation})
+        for idx, item in enumerate(data):
+            if "messages" in item:
+                # New conversation format
+                messages = item["messages"]
+                if not messages:
+                    log.warning(f"Skipping empty conversation at index {idx}")
+                    continue
+                # Prepend system message
+                full_messages = [{"role": "system", "content": system_message}] + messages
+                formatted_data.append({"messages": full_messages})
+            elif "q" in item and "a" in item:
+                # Legacy Q&A format
+                question = item.get("q")
+                answer = item.get("a")
+                if not question or not answer:
+                    log.warning(f"Skipping invalid item at index {idx}. Missing 'q' or 'a': {item}")
+                    continue
+                conversation = [
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": question},
+                    {"role": "assistant", "content": answer}
+                ]
+                formatted_data.append({"messages": conversation})
+            else:
+                log.warning(f"Skipping unrecognized format at index {idx}: {list(item.keys())}")
 
     except Exception as e:
         log.error(f"Error processing JSON file {file_path}: {e}", exc_info=True)
@@ -118,7 +131,7 @@ def train_model(
 
     args = SFTConfig(
         output_dir=output_model_name,
-        max_seq_length=512,
+        max_seq_length=2048,
         packing=True,
         num_train_epochs=3,
         per_device_train_batch_size=1,
@@ -183,7 +196,7 @@ def train_model(
 def main(
     output_model_name: str = config.get("DEFAULT", "expert_model_name", fallback="Expert LLM"),
     base_model_id: str = config.get("DEFAULT", "base_model_id", fallback="google/gemma-3-1b-pt"),
-    dataset_path: str = "training/qna_dataset.json",
+    dataset_path: str = "training/conversation_dataset.json",
     model_expertise: str = config.get("DEFAULT", "model_expertise", fallback="Software"),
     hf_token: str = config.get("DEFAULT", "hf_token", fallback=None),
     system_prompt_template: str = config.get(

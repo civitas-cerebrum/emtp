@@ -1,41 +1,59 @@
 import os
 import json
-import requests
 from typing import Optional
 
 from util.utilities import get_config, get_logger, get_emtp_directory
+from util.llm_client import LLMClient, create_llm_client
+from util.llm_providers.base import LLMError
+from util.file_utils import atomic_write_json
 
 config = get_config()
 log = get_logger(__name__)
 
 
 def generate_qna_dataset(
+    client: LLMClient,
     prompt: str,
     model_expertise: str,
-    scraped_content_dir: str,
-    base_url: str,
+    scraped_content_dirs: list[str] | str,
     model_name: str,
-    request_timeout: int,
-    authorization_token: Optional[str] = None,
+    min_content_length: int = 200,
+    max_content_length: int = 0,
 ):
     """
-    Generates a Q&A dataset from markdown files using an external API.
-    Processes files and formats questions and answers into a dataset.
+    Generates a Q&A dataset from markdown files using an LLMClient.
+    Accepts a single directory path or a list of directory paths.
+    If max_content_length > 0, truncates documents to that length.
     """
     qna_dataset = []
+
+    # Backward compatibility: wrap single string in a list
+    if isinstance(scraped_content_dirs, str):
+        scraped_content_dirs = [scraped_content_dirs]
+
     markdown_files = []
-    for root, dirs, files in os.walk(scraped_content_dir):
-        for file in files:
-            if file.endswith(".md"):
-                markdown_files.append(os.path.join(root, file))
+    for content_dir in scraped_content_dirs:
+        source_label = "round2" if "deep" in content_dir else "round1"
+        for root, dirs, files in os.walk(content_dir):
+            for file in files:
+                if file.endswith(".md"):
+                    markdown_files.append({
+                        "path": os.path.join(root, file),
+                        "source": source_label,
+                        "category": os.path.basename(root).replace("_", " ").title(),
+                        "source_file": os.path.relpath(os.path.join(root, file), content_dir),
+                    })
 
     if not markdown_files:
-        log.warning(f"No .md files found in {scraped_content_dir}")
+        log.warning(f"No .md files found in {scraped_content_dirs}")
         return qna_dataset
 
     prompt = prompt.format(domain_of_expertise=model_expertise)
 
-    for filepath in markdown_files:
+    for idx, file_info in enumerate(markdown_files, 1):
+        filepath = file_info["path"]
+        source = file_info["source"]
+        category = file_info["category"]
         filename = os.path.basename(filepath)
         try:
             with open(filepath, "r", encoding="utf-8") as f:
@@ -44,99 +62,54 @@ def generate_qna_dataset(
             log.error(f"Error reading file {filename}: {e}")
             continue
 
+        if len(document_content.strip()) < min_content_length:
+            log.warning(f"Skipping short file ({len(document_content.strip())} chars < {min_content_length}): {filename}")
+            continue
+
+        if max_content_length > 0 and len(document_content) > max_content_length:
+            log.warning(f"Truncating {filename} from {len(document_content)} to {max_content_length} chars")
+            document_content = document_content[:max_content_length]
+
         log.info(
-            f"Generating semi-sythetic data based on: {filename} ({len(document_content)} chars)"
+            f"[{idx}/{len(markdown_files)}] Generating semi-synthetic data based on: {filename} ({len(document_content)} chars)"
         )
 
-        request_body = {
-            "model": model_name,
-            "keep_alive": 0,
-            "prompt": prompt + "\n" + document_content,
-            "stream": False,
-            "images": None,
-            "options": None,
-            "format": {
-                "type": "object",
-                "properties": {
-                    "qnaList": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "q": {"type": "string"},
-                                "a": {"type": "string"},
-                            },
+        schema = {
+            "type": "object",
+            "properties": {
+                "qnaList": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "q": {"type": "string"},
+                            "a": {"type": "string"},
                         },
-                    }
-                },
-                "required": ["qnaList"],
+                    },
+                }
             },
+            "required": ["qnaList"],
         }
 
-        headers = {"Content-Type": "application/json"}
-        if authorization_token:
-            headers["Authorization"] = f"Bearer {authorization_token}"
-
         try:
-            response = requests.post(
-                base_url, headers=headers, json=request_body, timeout=request_timeout
-            )
-            response.raise_for_status()
-            json_response = response.json()
-            log.debug(f"Raw JSON response from Ollama for {filename}: {json_response}")
+            result = client.generate(prompt=prompt + "\n" + document_content, model=model_name, format=schema)
 
-            if "response" in json_response:
-                log.debug(
-                    f"Content of json_response['response'] for {filename}: {json_response['response']}"
-                )
-                if isinstance(json_response["response"], str):
-                    try:
-                        qna = json.loads(json_response["response"])
-                        log.debug(f"Parsed qna from string for {filename}: {qna}")
-                        if "qnaList" in qna:
-                            qna_list = qna["qnaList"]
-                            qna_dataset.extend(qna_list)
-                        else:
-                            log.warning(
-                                f"Key 'qnaList' not found in parsed response for file {filename}: {qna}"
-                            )
-                    except json.JSONDecodeError:
-                        log.error(
-                            f"Failed to decode JSON string from 'response' for file {filename}: {json_response['response']}"
-                        )
-                elif (
-                    isinstance(json_response["response"], dict)
-                    and "qnaList" in json_response["response"]
-                ):
-                    qna_list = json_response["response"]["qnaList"]
-                    qna_dataset.extend(qna_list)
-                else:
-                    log.warning(
-                        f"Unexpected response format from Ollama for file {filename}: {json_response['response']}"
-                    )
+            qna_list = None
+            if isinstance(result, dict) and "qnaList" in result:
+                qna_list = result["qnaList"]
             else:
-                log.warning(
-                    f"Key 'response' not found in JSON response from Ollama for file {filename}: {json_response}"
-                )
+                log.warning(f"Unexpected response format for {filename}: {type(result)}")
 
-        except requests.exceptions.ConnectionError as e:
-            log.error(
-                f"Connection failed to Ollama at {base_url} for file {filename}: {e}"
-            )
-        except requests.exceptions.Timeout as e:
-            log.error(
-                f"Timeout connecting to Ollama at {base_url} for file {filename}: {e}"
-            )
-        except requests.exceptions.HTTPError as e:
-            log.error(
-                f"HTTP {e.response.status_code} error from Ollama for file {filename}: {e.response.text}"
-            )
-        except requests.exceptions.RequestException as e:
-            log.error(f"Network error connecting to Ollama for file {filename}: {e}")
-        except Exception as e:
-            log.error(
-                f"Unexpected error processing Ollama response for file {filename}: {type(e).__name__}: {e}"
-            )
+            if qna_list:
+                for pair in qna_list:
+                    pair["category"] = category
+                    pair["source"] = source
+                    pair["source_file"] = file_info["source_file"]
+                qna_dataset.extend(qna_list)
+
+        except LLMError as e:
+            log.error(f"LLM call failed for {filename}: {e}")
+            continue
 
     return qna_dataset
 
@@ -145,36 +118,39 @@ def main(
     model_expertise: str = config.get(
         "DEFAULT", "model_expertise", fallback="Software Engineering"
     ),
-    scraped_content_dir: str = "dataset/acquisition/temp/text_data",
-    owui_base_url: str = config["DEFAULT"]["owui_base_url"],
-    ollama_uri: str = config["DEFAULT"]["ollama_uri"],
+    scraped_content_dirs: list[str] | str = "dataset/acquisition/temp/datasources",
     model_name: str = config["DEFAULT"]["model_name"],
-    authorization_token: str = config["DEFAULT"]["authorization_token"],
     dataset_prompt_template: str = config["DEFAULT"]["dataset_prompt"],
-    request_timeout=config.getint("DEFAULT", "request_timeout", fallback=60),
 ):
     """
     Orchestrates Q&A dataset generation.
     Loads configuration, generates data, and saves it to a JSON file.
     """
+    client = create_llm_client()
 
-    base_url = owui_base_url + ollama_uri
-    scraped_content_dir = os.path.join(get_emtp_directory(), scraped_content_dir)
+    # Normalize to list and resolve paths
+    if isinstance(scraped_content_dirs, str):
+        scraped_content_dirs = [scraped_content_dirs]
+    scraped_content_dirs = [
+        os.path.join(get_emtp_directory(), d) for d in scraped_content_dirs
+    ]
+
+    min_content_length = config.getint("DEFAULT", "min_content_length", fallback=200)
+    max_content_length = config.getint("DEFAULT", "max_content_length", fallback=0)
 
     dataset = generate_qna_dataset(
+        client=client,
         prompt=dataset_prompt_template,
         model_expertise=model_expertise,
-        scraped_content_dir=scraped_content_dir,
-        base_url=base_url,
+        scraped_content_dirs=scraped_content_dirs,
         model_name=model_name,
-        authorization_token=authorization_token,
-        request_timeout=request_timeout
+        min_content_length=min_content_length,
+        max_content_length=max_content_length,
     )
 
     if dataset:
         print(f"Generated {len(dataset)} Q&A pairs.")
-        with open("qna_dataset.json", "w", encoding="utf-8") as f:
-            json.dump(dataset, f, indent=4)
+        atomic_write_json("qna_dataset.json", dataset)
         print("Q&A dataset saved to qna_dataset.json")
     else:
         print("Failed to generate Q&A dataset.")

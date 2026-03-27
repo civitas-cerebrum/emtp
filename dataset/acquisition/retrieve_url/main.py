@@ -6,6 +6,7 @@ from typing import Optional
 from .data_loader import get_questions
 from .search_engine import search_question  
 from util.utilities import get_config, get_logger
+from util.file_utils import atomic_write_json
 
 config = get_config()
 log = get_logger(__name__)
@@ -28,8 +29,8 @@ def search_and_save_urls(
     if dorks:
         log.debug(f"Using dorks: {dorks}")
 
-    for category, questions in questions_data.items():
-        log.debug(f"Processing category: {category}")
+    for cat_idx, (category, questions) in enumerate(questions_data.items(), 1):
+        log.info(f"[{cat_idx}/{len(questions_data)}] Processing category: {category}")
         category_results = []
         for question_data in questions:
             question_text = (
@@ -52,8 +53,7 @@ def search_and_save_urls(
         )
         output_file = os.path.join(base_output_dir, safe_filename)
 
-        with open(output_file, "w", encoding="utf-8") as f:
-            json.dump(category_results, f, indent=4)
+        atomic_write_json(output_file, category_results)
         log.debug(f"Saved {len(category_results)} results to {output_file}")
 
 
