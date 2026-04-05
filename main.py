@@ -31,6 +31,42 @@ from util.export import export_dataset
 config = get_config()
 log = get_logger(__name__)
 
+# Directories that are safe targets for rmtree during deep-dive cleanup
+_SAFE_RMTREE_PREFIXES = [
+    os.path.join("dataset", "acquisition", "temp"),
+]
+
+
+def _is_safe_rmtree_target(path: str) -> bool:
+    """Check that a path is safe to delete.
+
+    Blocks dangerous targets like /, home dirs, and the project root itself.
+    Allows paths within the project's temp area or in OS temp directories.
+    """
+    import tempfile
+
+    resolved = os.path.realpath(path)
+
+    # Never allow root, home, or single-component paths
+    dangerous = {"/", os.path.expanduser("~"), os.path.realpath(".")}
+    if resolved in dangerous or len(resolved.split(os.sep)) <= 2:
+        return False
+
+    # Allow project temp directories
+    project_root = os.path.realpath(os.path.dirname(__file__))
+    if resolved.startswith(project_root + os.sep):
+        rel = os.path.relpath(resolved, project_root)
+        if any(rel.startswith(prefix) for prefix in _SAFE_RMTREE_PREFIXES):
+            return True
+
+    # Allow OS temp directories (e.g. during tests)
+    tmp_root = os.path.realpath(tempfile.gettempdir())
+    if resolved.startswith(tmp_root + os.sep):
+        return True
+
+    return False
+
+
 def ensure_dir(path):
     """
     Ensures a directory exists, creating it if necessary.
@@ -66,7 +102,7 @@ def aggregate_metadata_to_file(metadata_entries: List[Dict[str, Any]], output_pa
         atomic_write_json(output_path, final_output)
         log.info(f"Metadata aggregated and saved to {output_path}.") # Preview first entry
         log.debug(f"Content preview: {json.dumps(final_output[:1] if final_output else [], indent=2)}...") # Preview first entry
-    except Exception as e:
+    except (OSError, TypeError, ValueError) as e:
         log.error(f"Error aggregating metadata to file {output_path}: {e}")
 
 
@@ -111,7 +147,7 @@ def print_pipeline_report(urls_dir, datasources_dir, qa_file='qna_dataset.json')
                 with open(qa_file, 'r') as f:
                     qa_data = json.load(f)
                     qa_count = len(qa_data) if isinstance(qa_data, list) else 0
-            except:
+            except (OSError, json.JSONDecodeError, ValueError):
                 pass
 
         # Print ASCII report
@@ -125,7 +161,7 @@ def print_pipeline_report(urls_dir, datasources_dir, qa_file='qna_dataset.json')
         log.info("  ✅ Pipeline completed successfully!")
         log.info("="*60)
 
-    except Exception as e:
+    except (OSError, json.JSONDecodeError, ValueError) as e:
         log.info(f"Note: Could not generate detailed report ({e})")
 
 def run_url_retrieval(questions_file='sample.json', output_dir='dataset/acquisition/temp/urls', verbose: bool = False, dorks: str = None):
@@ -171,6 +207,8 @@ def run_deep_dive(datasources_dir='dataset/acquisition/temp/datasources',
     # Clear previous deep-dive outputs for idempotency
     for d in [urls_deep_dir, datasources_deep_dir]:
         if os.path.exists(d):
+            if not _is_safe_rmtree_target(d):
+                raise ValueError(f"Refusing to delete directory outside safe area: {d}")
             shutil.rmtree(d)
 
     # Step 1: Generate deep-dive questions from round 1 markdown
@@ -184,7 +222,7 @@ def run_deep_dive(datasources_dir='dataset/acquisition/temp/datasources',
         if total_qs == 0:
             log.warning("No deep-dive questions generated. Skipping round 2 scraping.")
             return None
-    except Exception as e:
+    except (OSError, json.JSONDecodeError, ValueError) as e:
         log.error(f"Failed to read deep-dive questions: {e}")
         return None
 
@@ -452,7 +490,7 @@ def main():
                         from util.file_utils import atomic_write_json
                         atomic_write_json("qna_dataset.json", qna_data)
                         log.info(f"Removed {removed} duplicate Q&A pairs")
-                except Exception as e:
+                except (OSError, json.JSONDecodeError, ValueError) as e:
                     log.warning(f"Deduplication failed: {e}")
 
                 pipeline.mark_stage("qa_generation", "completed")
@@ -483,7 +521,7 @@ def main():
                 if not args.skip_conversation:
                     version_files["conversation_dataset.json"] = args.conversation_output
                 save_dataset_version(version_files)
-            except Exception as e:
+            except (OSError, ValueError) as e:
                 log.warning(f"Dataset versioning failed: {e}")
 
             # Export if requested
@@ -494,7 +532,7 @@ def main():
                     if not args.skip_conversation and os.path.exists(args.conversation_output):
                         conv_export = f"conversation_dataset.{args.export}"
                         export_dataset(args.conversation_output, conv_export, args.export)
-                except Exception as e:
+                except (OSError, ValueError, ImportError) as e:
                     log.warning(f"Export failed: {e}")
 
             pipeline.clear()

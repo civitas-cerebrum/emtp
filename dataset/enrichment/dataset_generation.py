@@ -57,8 +57,10 @@ def generate_qna_dataset(
         filename = os.path.basename(filepath)
         try:
             with open(filepath, "r", encoding="utf-8") as f:
-                document_content = f.read()
-        except Exception as e:
+                # Bounded read to avoid OOM on huge files
+                read_limit = max_content_length + 1 if max_content_length > 0 else -1
+                document_content = f.read(read_limit)
+        except (OSError, UnicodeDecodeError) as e:
             log.error(f"Error reading file {filename}: {e}")
             continue
 
@@ -67,7 +69,7 @@ def generate_qna_dataset(
             continue
 
         if max_content_length > 0 and len(document_content) > max_content_length:
-            log.warning(f"Truncating {filename} from {len(document_content)} to {max_content_length} chars")
+            log.warning(f"Truncating {filename} to {max_content_length} chars")
             document_content = document_content[:max_content_length]
 
         log.info(

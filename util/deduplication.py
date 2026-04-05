@@ -27,7 +27,7 @@ def deduplicate_qna(dataset: list[dict]) -> tuple[list[dict], int]:
 
     for entry in dataset:
         q_normalized = normalize_text(entry.get("q", ""))
-        q_hash = hashlib.md5(q_normalized.encode()).hexdigest()
+        q_hash = hashlib.sha256(q_normalized.encode()).hexdigest()
 
         if q_hash in seen:
             removed += 1
