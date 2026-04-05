@@ -79,43 +79,56 @@ def scrape_urls_batch(urls: List[str], base_url: str = "http://localhost:3002", 
         headers["Authorization"] = f"Basic {encoded_auth}"
         log.debug("Using basic authentication for Firecrawl")
 
-    # Step 1: Submit batch scrape job
-    try:
-        batch_request_body = {
-            "urls": urls,
-            "formats": ["markdown"]
-        }
-        batch_response = requests.post(
-            f"{base_url}/v2/batch/scrape", # Correct endpoint for batch submission
-            json=batch_request_body,
-            headers=headers,
-            timeout=120
-        )
-        batch_response.raise_for_status()
-        batch_data = batch_response.json()
+    # Step 1: Submit batch scrape job (with retry)
+    job_id = None
+    batch_request_body = {
+        "urls": urls,
+        "formats": ["markdown"]
+    }
+    for attempt in range(3):
+        try:
+            if attempt > 0:
+                log.info(f"Retrying batch submission (attempt {attempt + 1}/3)...")
+                time.sleep(5 * (2 ** attempt))
 
-        if not batch_data.get('success') or 'id' not in batch_data:
-            log.error(f"Failed to submit batch job: {batch_data.get('message', 'Unknown error')}")
-            return {"success": 0, "failed": total_urls, "data": []}
+            batch_response = requests.post(
+                f"{base_url}/v2/batch/scrape",
+                json=batch_request_body,
+                headers=headers,
+                timeout=120
+            )
+            batch_response.raise_for_status()
+            batch_data = batch_response.json()
 
-        job_id = batch_data['id']
-        log.debug(f"Batch job submitted. Job ID: {job_id}. Polling for results...")
+            if not batch_data.get('success') or 'id' not in batch_data:
+                log.error(f"Failed to submit batch job: {batch_data.get('message', 'Unknown error')}")
+                continue
 
-    except requests.exceptions.RequestException as e:
-        log.error(f"Error submitting batch job to Firecrawl: {e}")
+            job_id = batch_data['id']
+            log.debug(f"Batch job submitted. Job ID: {job_id}. Polling for results...")
+            break
+
+        except requests.exceptions.RequestException as e:
+            log.warning(f"Batch submission attempt {attempt + 1} failed: {e}")
+        except Exception as e:
+            log.error(f"Unexpected error submitting batch job: {e}")
+            break
+
+    if not job_id:
+        log.error("Failed to submit batch job after all retries")
         return {"success": 0, "failed": total_urls, "data": []}
-    except Exception as e:
-        log.error(f"Unexpected error submitting batch job: {e}")
-        return {"success": 0, "failed": total_urls, "data": []}
 
-    # Step 2: Poll for job status
-    status_url = f"{base_url}/v2/crawl/{job_id}" # Endpoint to check job status and get results
-    
+    # Step 2: Poll for job status (with retry on transient errors)
+    status_url = f"{base_url}/v2/crawl/{job_id}"
+    poll_errors = 0
+    max_poll_errors = 5  # Allow up to 5 consecutive poll failures before giving up
+
     while True:
         try:
             status_response = requests.get(status_url, headers=headers, timeout=60)
             status_response.raise_for_status()
             status_data = status_response.json()
+            poll_errors = 0  # Reset error counter on success
 
             current_status = status_data.get('status')
             log.debug(f"Batch job {job_id} status: {current_status}")
@@ -142,18 +155,22 @@ def scrape_urls_batch(urls: List[str], base_url: str = "http://localhost:3002", 
                             log.warning(f"No markdown content found for: {url}")
                 else:
                     log.warning(f"Batch job {job_id} completed, but no data received.")
-                break # Exit loop if completed
+                break
             elif current_status in ["active", "pending", "scraping"]:
-                time.sleep(5) # Wait 5 seconds before polling again
+                time.sleep(5)
             else:
                 log.error(f"Batch job {job_id} failed or returned unexpected status: {current_status}")
                 failed_count = total_urls - len(successful_results)
                 break
 
         except requests.exceptions.RequestException as e:
-            log.error(f"Error polling batch job status for {job_id}: {e}")
-            failed_count = total_urls - len(successful_results)
-            break
+            poll_errors += 1
+            if poll_errors >= max_poll_errors:
+                log.error(f"Polling failed {max_poll_errors} times consecutively for {job_id}. Giving up. Last error: {e}")
+                failed_count = total_urls - len(successful_results)
+                break
+            log.warning(f"Poll error ({poll_errors}/{max_poll_errors}) for {job_id}: {e}. Retrying in 10s...")
+            time.sleep(10)
         except Exception as e:
             log.error(f"Unexpected error during batch job status polling: {e}")
             failed_count = total_urls - len(successful_results)

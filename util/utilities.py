@@ -1,5 +1,6 @@
 import logging
 import configparser
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -33,6 +34,40 @@ def get_config(config_name: str = "config.ini") -> configparser.ConfigParser:
     _CONFIG_CACHE = config
     return config
 
+REQUIRED_CONFIG_KEYS = ["owui_base_url", "ollama_uri", "model_name"]
+
+OPTIONAL_CONFIG_KEYS = {
+    "authorization_token": None,
+    "request_timeout": "60",
+    "conversation_batch_size": "8",
+    "search_result_count": "10",
+    "model_expertise": "Software Engineering",
+    "llm_provider": "ollama",
+}
+
+def validate_config(config: configparser.ConfigParser = None):
+    """Validate config keys at startup. Exit on missing required, warn on missing optional."""
+    if config is None:
+        config = get_config()
+
+    log = logging.getLogger("emtp.config")
+
+    # Check required keys
+    missing_required = [
+        key for key in REQUIRED_CONFIG_KEYS
+        if not config.has_option("DEFAULT", key)
+    ]
+    if missing_required:
+        for key in missing_required:
+            log.error(f"Missing required config key: '{key}'")
+        log.error("Cannot proceed without required configuration. Exiting.")
+        sys.exit(1)
+
+    # Check optional keys
+    for key, default in OPTIONAL_CONFIG_KEYS.items():
+        if not config.has_option("DEFAULT", key):
+            log.warning(f"Missing optional config key '{key}', using default: {default}")
+
 def initialize_debug_setting():
     """Initialize the debug setting from config file."""
     global debug_enabled
@@ -40,14 +75,15 @@ def initialize_debug_setting():
     debug_enabled = config.getboolean("DEFAULT", "debug_logs", fallback=False)
 
     logging.basicConfig(
-        level=logging.INFO, # Keep root at INFO so 3rd party libs stay quiet, should be NOTSET to see all debug logs
+        level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        force=True 
+        force=True
     )
-    
-    # Only set OUR app's specific logger to DEBUG if enabled
+
     if debug_enabled:
         logging.getLogger("emtp").setLevel(logging.DEBUG)
+
+    validate_config(config)
 
 def is_verbose() -> bool:
     """Return current debug state."""

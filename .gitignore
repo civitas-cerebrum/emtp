@@ -48,3 +48,10 @@ qna_dataset.json
 categorised-questions.json
 generic-questions.json
 generated-questions.json
+
+# Pipeline state
+.pipeline_state.json
+
+# Dataset versions
+datasets/
+/docs

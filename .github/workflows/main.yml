@@ -6,78 +6,85 @@ on:
       - main
   pull_request:
 jobs:
-  build-and-run:
+  security:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       security-events: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-      
-      - name: Run Trivy vulnerability scanner in repo mode
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           scan-type: 'fs'
           ignore-unfixed: true
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
-      
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@5c8a8a642e79153f5d047b10ec1cba1d1cc65699 # v3.35.1
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
-      
+
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
-          python-version: '3.x'
-      
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-      
+          python-version: '3.12'
+
       - name: Install Semgrep CLI
-        run: python3 -m pip install semgrep
-      
+        run: pip install semgrep
+
       - name: Run Semgrep SAST and Secrets Scanning
         run: semgrep scan --sarif --sarif-output=semgrep.sarif
-      
-      - name: Upload Semgrep scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+
+      - name: Upload Semgrep scan results
+        uses: github/codeql-action/upload-sarif@5c8a8a642e79153f5d047b10ec1cba1d1cc65699 # v3.35.1
         if: always()
         with:
           sarif_file: 'semgrep.sarif'
-      
-      - name: Generate config.ini with secrets
-        env:
-          BASE_URL: ${{ secrets.BASE_URL }}
-          MODEL: ${{ secrets.MODEL }}
-          AUTH_TOKEN: ${{ secrets.AUTH_TOKEN }}
-          DATASET_PROMPT: ${{ vars.DATASET_PROMPT }}
-          FIRECRAWL_URL: ${{ secrets.FIRECRAWL_URL }}
-          FIRECRAWL_USER: ${{ secrets.FIRECRAWL_USER }}
-          FIRECRAWL_PASS: ${{ secrets.FIRECRAWL_PASS }}
+
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt && pip install pytest
+
+      - name: Generate minimal config.ini for tests
         run: |
-          # Create config using printf with environment variables
-          printf "[DEFAULT]\n" > config.ini
-          printf "model_expertise = Quality Assurance\n" >> config.ini
-          printf "input_dir = dataset/acquisition/temp/datasources\n" >> config.ini
-          printf "base_url = %s\n" "$BASE_URL" >> config.ini
-          printf "model_name = %s\n" "$MODEL" >> config.ini
-          printf "authorization_token = %s\n" "$AUTH_TOKEN" >> config.ini
-          printf "dataset_prompt = %s\n" "$DATASET_PROMPT" >> config.ini
-          printf "firecrawl_url = %s\n" "$FIRECRAWL_URL" >> config.ini
-          printf "firecrawl_user = %s\n" "$FIRECRAWL_USER" >> config.ini
-          printf "firecrawl_pass = %s\n" "$FIRECRAWL_PASS" >> config.ini
-          
-          echo "✅ Generated config.ini"
-          echo "Config file location: $(pwd)/config.ini"
-          
-          # Show config with masked secrets (for debugging)
-          echo "=== Config verification (secrets masked) ==="
-          sed 's/\(authorization_token\|firecrawl_pass\) = .*/\1 = ***MASKED***/g' config.ini
-      
-      - name: Run EMTP Pipeline
-        run: python main.py --stage full_pipeline --questions-file dataset/acquisition/retrieve_url/sample.json --verbose
+          cat > config.ini << 'EOF'
+          [DEFAULT]
+          model_expertise = Quality Assurance
+          debug_logs = False
+          request_timeout = 60
+          owui_base_url = http://localhost:8080/
+          ollama_uri = api/generate
+          model_name = gemma3:4b
+          authorization_token = test-token  # dummy value for CI tests only, not a real credential
+          dataset_prompt = Generate Q&A about {domain_of_expertise}
+          q_gen_prompt = Generate questions about {topic}
+          q_categorisation_prompt = Categorise this question
+          deep_dive_prompt = Generate follow-up questions about {domain_of_expertise}
+          conversation_prompt = Convert Q&A pairs about {domain_of_expertise} into a conversation
+          firecrawl_url = http://localhost:3002
+          search_result_count = 10
+          conversation_batch_size = 8
+          min_content_length = 200
+          max_content_length = 0
+          EOF
+
+      - name: Run tests
+        run: python -m pytest tests/ -v

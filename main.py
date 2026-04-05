@@ -10,18 +10,62 @@ import os
 import argparse
 import logging
 import json
+import shutil
 from typing import List, Dict, Any
 import configparser
 from collections import defaultdict # Import defaultdict
-import asyncio # Import asyncio
 from dataset.acquisition import retrieve_url_stage
 from dataset.acquisition.save_datasource.main import main as save_datasource_stage
 from dataset.enrichment.dataset_generation import main as generate_qna_dataset
+from dataset.enrichment.deep_dive_generation import main as generate_deep_dive_questions
+from dataset.enrichment.conversation_conversion import main as convert_to_conversations
 from util.utilities import get_config, get_logger, set_verbose, is_verbose
+from util.pipeline_state import PipelineState
+from util.schema_validation import validate_qna_dataset, validate_conversation_dataset, ValidationError
+from util.file_utils import atomic_write_json
+from util.deduplication import deduplicate_qna
+from util.dataset_versioning import save_dataset_version
+from util.export import export_dataset
 
 
 config = get_config()
-log = get_logger(__name__)   
+log = get_logger(__name__)
+
+# Directories that are safe targets for rmtree during deep-dive cleanup
+_SAFE_RMTREE_PREFIXES = [
+    os.path.join("dataset", "acquisition", "temp"),
+]
+
+
+def _is_safe_rmtree_target(path: str) -> bool:
+    """Check that a path is safe to delete.
+
+    Blocks dangerous targets like /, home dirs, and the project root itself.
+    Allows paths within the project's temp area or in OS temp directories.
+    """
+    import tempfile
+
+    resolved = os.path.realpath(path)
+
+    # Never allow root, home, or single-component paths
+    dangerous = {"/", os.path.expanduser("~"), os.path.realpath(".")}
+    if resolved in dangerous or len(resolved.split(os.sep)) <= 2:
+        return False
+
+    # Allow project temp directories
+    project_root = os.path.realpath(os.path.dirname(__file__))
+    if resolved.startswith(project_root + os.sep):
+        rel = os.path.relpath(resolved, project_root)
+        if any(rel.startswith(prefix) for prefix in _SAFE_RMTREE_PREFIXES):
+            return True
+
+    # Allow OS temp directories (e.g. during tests)
+    tmp_root = os.path.realpath(tempfile.gettempdir())
+    if resolved.startswith(tmp_root + os.sep):
+        return True
+
+    return False
+
 
 def ensure_dir(path):
     """
@@ -55,11 +99,10 @@ def aggregate_metadata_to_file(metadata_entries: List[Dict[str, Any]], output_pa
 
     try:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(final_output, f, indent=4)
+        atomic_write_json(output_path, final_output)
         log.info(f"Metadata aggregated and saved to {output_path}.") # Preview first entry
         log.debug(f"Content preview: {json.dumps(final_output[:1] if final_output else [], indent=2)}...") # Preview first entry
-    except Exception as e:
+    except (OSError, TypeError, ValueError) as e:
         log.error(f"Error aggregating metadata to file {output_path}: {e}")
 
 
@@ -104,7 +147,7 @@ def print_pipeline_report(urls_dir, datasources_dir, qa_file='qna_dataset.json')
                 with open(qa_file, 'r') as f:
                     qa_data = json.load(f)
                     qa_count = len(qa_data) if isinstance(qa_data, list) else 0
-            except:
+            except (OSError, json.JSONDecodeError, ValueError):
                 pass
 
         # Print ASCII report
@@ -118,23 +161,21 @@ def print_pipeline_report(urls_dir, datasources_dir, qa_file='qna_dataset.json')
         log.info("  ✅ Pipeline completed successfully!")
         log.info("="*60)
 
-    except Exception as e:
+    except (OSError, json.JSONDecodeError, ValueError) as e:
         log.info(f"Note: Could not generate detailed report ({e})")
 
 def run_url_retrieval(questions_file='sample.json', output_dir='dataset/acquisition/temp/urls', verbose: bool = False, dorks: str = None):
-    # Executes the URL retrieval stage.
-    # Fetches URLs from questions and saves them to the output directory.
-    
     if verbose:
         set_verbose(True)
-    
+
     log.info(f"🔍 Starting URL retrieval...")
     log.info(f"  Input: {questions_file}")
     log.info(f"  Output: {output_dir}")
     ensure_dir(output_dir)
-    # Extract just the filename if a full path is provided
-    filename_only = os.path.basename(questions_file)
-    retrieve_url_stage(output_dir=output_dir, questions_file=filename_only, dorks=dorks)
+    # Only extract basename for relative paths; preserve absolute paths
+    if not os.path.isabs(questions_file):
+        questions_file = os.path.basename(questions_file)
+    retrieve_url_stage(output_dir=output_dir, questions_file=questions_file, dorks=dorks)
     log.info(f"✅ URL retrieval completed! Results saved to {output_dir}")
 
 def run_datasource_capture(input_dir='dataset/acquisition/temp/urls', output_dir='dataset/acquisition/temp/datasources', verbose: bool = False) -> List[Dict[str, Any]]:
@@ -151,6 +192,66 @@ def run_datasource_capture(input_dir='dataset/acquisition/temp/urls', output_dir
     log.info(f"✅ Datasource capture completed! Data sources saved to {output_dir}")
     return collected_metadata
 
+def run_deep_dive(datasources_dir='dataset/acquisition/temp/datasources',
+                  urls_deep_dir='dataset/acquisition/temp/urls_deep',
+                  datasources_deep_dir='dataset/acquisition/temp/datasources_deep',
+                  verbose: bool = False, dorks: str = None):
+    """
+    Orchestrates the deep-dive stage:
+    1. Generate follow-up questions from round 1 content
+    2. Search those questions (reuse URL retrieval)
+    3. Scrape the results (reuse datasource capture)
+    """
+    log.info(f"🔬 Starting deep-dive generation...")
+
+    # Clear previous deep-dive outputs for idempotency
+    for d in [urls_deep_dir, datasources_deep_dir]:
+        if os.path.exists(d):
+            if not _is_safe_rmtree_target(d):
+                raise ValueError(f"Refusing to delete directory outside safe area: {d}")
+            shutil.rmtree(d)
+
+    # Step 1: Generate deep-dive questions from round 1 markdown
+    questions_file = generate_deep_dive_questions(scraped_content_dir=datasources_dir)
+
+    # Check if any questions were generated
+    try:
+        with open(questions_file, 'r') as f:
+            questions = json.load(f)
+        total_qs = sum(len(cat.get("questions", [])) for cat in questions)
+        if total_qs == 0:
+            log.warning("No deep-dive questions generated. Skipping round 2 scraping.")
+            return None
+    except (OSError, json.JSONDecodeError, ValueError) as e:
+        log.error(f"Failed to read deep-dive questions: {e}")
+        return None
+
+    log.info(f"Generated {total_qs} deep-dive questions. Starting round 2 search & scrape...")
+
+    # Step 2: Search for those questions
+    ensure_dir(urls_deep_dir)
+    run_url_retrieval(questions_file=questions_file, output_dir=urls_deep_dir, verbose=verbose, dorks=dorks)
+
+    # Step 3: Scrape the results
+    ensure_dir(datasources_deep_dir)
+    run_datasource_capture(input_dir=urls_deep_dir, output_dir=datasources_deep_dir, verbose=verbose)
+
+    log.info(f"✅ Deep-dive generation completed! Round 2 data saved to {datasources_deep_dir}")
+    return datasources_deep_dir
+
+def run_conversation_conversion(qna_dataset_file='qna_dataset.json',
+                                 output_file='conversation_dataset.json'):
+    """Runs the conversation conversion stage."""
+    log.info(f"💬 Starting conversation conversion...")
+    log.info(f"  Input: {qna_dataset_file}")
+    log.info(f"  Output: {output_file}")
+    output_path = convert_to_conversations(
+        qna_dataset_file=qna_dataset_file,
+        output_file=output_file,
+    )
+    log.info(f"✅ Conversation conversion completed! Dataset saved to {output_path}")
+    return output_path
+
 def run_datasource_processing(input_dir='dataset/acquisition/temp/datasources', output_dir='dataset/acquisition/temp/text_data', verbose: bool = False, accurate: bool = False):
     # Placeholder for processing captured datasources into text data.
     # This stage is not yet fully implemented.
@@ -165,7 +266,7 @@ async def run_semi_sythetic_data_generation(metadata_entries: List[Dict[str, Any
     # Generates Q&A data from markdown and updates metadata.
     # Aggregates results and saves them to a JSON file.
     log.info(f"🤖 Starting semi-synthetic data generation and metadata aggregation...")
-    
+
     # Generate Q&A dataset
     # Pass the full path to the markdown files to qa_generation.generate_qna_dataset
     # qa_generation.generate_qna_dataset expects markdown files to be found from input_dir,
@@ -199,29 +300,29 @@ async def run_semi_sythetic_data_generation(metadata_entries: List[Dict[str, Any
 
 
 def get_user_choice():
-    # Displays the main menu and prompts user for a stage choice.
-    # Ensures a valid selection is made from the available options.
     log.info("\n" + "="*50)
     log.info("EMTP Data Acquisition Pipeline")
     log.info("="*50)
     log.info("Choose a stage to run:")
     log.info("1. URL Retrieval (from questions to URLs)")
     log.info("2. Datasource Capture (from URLs to markdown data sources)")
-    log.info("3. Q&A Generation (from markdown data sources to Q&A dataset)")
-    log.info("4. Run Full Pipeline (all stages)")
-    log.info("5. Exit")
+    log.info("3. Deep-Dive Generation (generate follow-up questions & scrape)")
+    log.info("4. Q&A Generation (from markdown data sources to Q&A dataset)")
+    log.info("5. Conversation Conversion (from Q&A pairs to multi-turn dialogues)")
+    log.info("6. Run Full Pipeline (all stages)")
+    log.info("7. Exit")
     log.info("="*50)
 
     while True:
         try:
-            choice = input("Enter your choice (1-5): ").strip()
-            if choice in ['1', '2', '3', '4', '5']:
+            choice = input("Enter your choice (1-7): ").strip()
+            if choice in ['1', '2', '3', '4', '5', '6', '7']:
                 return choice
             else:
-                log.info("Invalid choice. Please enter 1, 2, 3, 4, or 5.")
+                log.info("Invalid choice. Please enter 1-7.")
         except KeyboardInterrupt:
             log.info("\nExiting...")
-            return '5' # Changed to '5' for exit
+            return '7'
 
 def get_path_input(prompt, default):
     # Prompts user for a path, providing a default.
@@ -239,11 +340,13 @@ def get_log_level_input():
         else:
             log.info("Invalid log level. Please choose from DEBUG, INFO, WARNING, ERROR, CRITICAL.")
 
-async def main():
+def main():
     # Main entry point for the EMTP pipeline.
     # Supports interactive and command-line execution.
     parser = argparse.ArgumentParser(description="EMTP Data Acquisition Pipeline")
-    parser.add_argument('--stage', type=str, choices=['url_retrieval', 'datasource_capture', 'qa_generation', 'full_pipeline'],
+    parser.add_argument('--stage', type=str,
+                        choices=['url_retrieval', 'datasource_capture', 'deep_dive',
+                                 'qa_generation', 'conversation_conversion', 'full_pipeline'],
                         help='Specify the pipeline stage to run directly (non-interactive mode).')
     parser.add_argument('--questions-file', type=str, default='sample.json',
                         help='Path to the questions JSON file.')
@@ -258,6 +361,20 @@ async def main():
                         help='Set the logging level.')
     parser.add_argument('--dorks', type=str,
                         help='DuckDuckGo search operators to apply to all URL retrieval searches (e.g., "filetype:pdf site:example.com").')
+    parser.add_argument('--deep-dive-output-dir', type=str,
+                        default='dataset/acquisition/temp/datasources_deep',
+                        help='Output directory for deep-dive datasources.')
+    parser.add_argument('--conversation-output', type=str,
+                        default='conversation_dataset.json',
+                        help='Output file for conversation dataset.')
+    parser.add_argument('--skip-deep-dive', action='store_true',
+                        help='Skip deep-dive stage in full pipeline.')
+    parser.add_argument('--skip-conversation', action='store_true',
+                        help='Skip conversation conversion in full pipeline (produce flat Q&A only).')
+    parser.add_argument('--resume', action='store_true',
+                        help='Resume from last completed stage in a previous run.')
+    parser.add_argument('--export', type=str, choices=['csv', 'parquet'],
+                        help='Export final dataset to this format after pipeline completion.')
 
     args = parser.parse_args()
 
@@ -285,6 +402,18 @@ async def main():
             authorization_token = config['DEFAULT'].get('authorization_token', None) # Use .get for optional values
             # Directly call Q&A generation stage with collected metadata
             run_semi_sythetic_data_generation(collected_metadata, args.datasources_output_dir, base_url, model_name, authorization_token)
+        elif args.stage == 'deep_dive':
+            run_deep_dive(
+                datasources_dir=args.datasources_output_dir,
+                urls_deep_dir='dataset/acquisition/temp/urls_deep',
+                datasources_deep_dir=args.deep_dive_output_dir,
+                verbose=verbose_logging, dorks=args.dorks
+            )
+        elif args.stage == 'conversation_conversion':
+            run_conversation_conversion(
+                qna_dataset_file='qna_dataset.json',
+                output_file=args.conversation_output,
+            )
         elif args.stage == 'qa_generation':
             # This path is now deprecated as qa_generation is integrated into datasource_capture in non-interactive mode.
             # However, if run separately, it expects metadata input.
@@ -293,41 +422,135 @@ async def main():
             return
         elif args.stage == 'full_pipeline':
             log.info("Running full pipeline...")
-            run_url_retrieval(args.questions_file, args.urls_output_dir, verbose=verbose_logging, dorks=args.dorks)
-            # Load config for API parameters
-            config = get_config()
-            base_url = config['DEFAULT']['owui_base_url']
-            model_name = config['DEFAULT']['model_name']
-            authorization_token = config['DEFAULT'].get('authorization_token', None) # Use .get for optional values
+            urls_dir = args.urls_output_dir
+            datasources_dir = args.datasources_output_dir
+            urls_deep_dir = 'dataset/acquisition/temp/urls_deep'
+            datasources_deep_dir = args.deep_dive_output_dir
 
-            collected_metadata = run_datasource_capture(args.urls_output_dir, args.datasources_output_dir, verbose=verbose_logging)
-            log.debug(f"Collected metadata count after datasource capture (full_pipeline): {len(collected_metadata)}")
-            
-            # Save initial metadata before Q&A generation
-            initial_metadata_path = os.path.join(args.datasources_output_dir, "datasource_metadata.json")
-            aggregate_metadata_to_file(collected_metadata, initial_metadata_path)
+            pipeline = PipelineState()
 
-            await run_semi_sythetic_data_generation(collected_metadata, args.datasources_output_dir, base_url, model_name, authorization_token)
+            if args.resume and pipeline.has_previous_run():
+                completed = pipeline.get_completed_stages()
+                resume_point = pipeline.get_resume_point()
+                log.info(f"Resuming pipeline. Completed stages: {completed}. Resuming from: {resume_point}")
+            else:
+                pipeline.start_run()
 
+            # Stage 1: URL Retrieval
+            if not pipeline.is_completed("url_retrieval"):
+                run_url_retrieval(args.questions_file, urls_dir, verbose=verbose_logging, dorks=args.dorks)
+                pipeline.mark_stage("url_retrieval", "completed", output_dir=urls_dir)
+            else:
+                log.info("Skipping url_retrieval (already completed)")
+
+            # Stage 2: Datasource Capture
+            if not pipeline.is_completed("datasource_capture"):
+                collected_metadata = run_datasource_capture(urls_dir, datasources_dir, verbose=verbose_logging)
+                pipeline.mark_stage("datasource_capture", "completed", output_dir=datasources_dir)
+            else:
+                log.info("Skipping datasource_capture (already completed)")
+
+            # Stage 3: Deep-Dive (optional)
+            content_dirs = [datasources_dir]
+            if not args.skip_deep_dive:
+                if not pipeline.is_completed("deep_dive"):
+                    deep_result = run_deep_dive(
+                        datasources_dir=datasources_dir,
+                        urls_deep_dir=urls_deep_dir,
+                        datasources_deep_dir=datasources_deep_dir,
+                        verbose=verbose_logging, dorks=args.dorks
+                    )
+                    if deep_result:
+                        content_dirs.append(datasources_deep_dir)
+                    pipeline.mark_stage("deep_dive", "completed", output_dir=datasources_deep_dir)
+                else:
+                    log.info("Skipping deep_dive (already completed)")
+                    if os.path.exists(datasources_deep_dir):
+                        content_dirs.append(datasources_deep_dir)
+            else:
+                pipeline.mark_stage("deep_dive", "skipped")
+
+            # Stage 4: Q&A Generation (from both rounds)
+            if not pipeline.is_completed("qa_generation"):
+                log.info(f"🤖 Starting Q&A generation from {len(content_dirs)} source(s)...")
+                generate_qna_dataset(scraped_content_dirs=content_dirs)
+                try:
+                    validate_qna_dataset("qna_dataset.json")
+                    log.info("Q&A dataset validation passed")
+                except ValidationError as e:
+                    log.error(f"Q&A dataset validation failed: {e}")
+
+                # Deduplication
+                try:
+                    import json
+                    with open("qna_dataset.json", "r") as f:
+                        qna_data = json.load(f)
+                    qna_data, removed = deduplicate_qna(qna_data)
+                    if removed > 0:
+                        from util.file_utils import atomic_write_json
+                        atomic_write_json("qna_dataset.json", qna_data)
+                        log.info(f"Removed {removed} duplicate Q&A pairs")
+                except (OSError, json.JSONDecodeError, ValueError) as e:
+                    log.warning(f"Deduplication failed: {e}")
+
+                pipeline.mark_stage("qa_generation", "completed")
+            else:
+                log.info("Skipping qa_generation (already completed)")
+
+            # Stage 5: Conversation Conversion (optional)
+            if not args.skip_conversation:
+                if not pipeline.is_completed("conversation_conversion"):
+                    run_conversation_conversion(
+                        qna_dataset_file='qna_dataset.json',
+                        output_file=args.conversation_output,
+                    )
+                    try:
+                        validate_conversation_dataset(args.conversation_output)
+                        log.info("Conversation dataset validation passed")
+                    except ValidationError as e:
+                        log.error(f"Conversation dataset validation failed: {e}")
+                    pipeline.mark_stage("conversation_conversion", "completed")
+                else:
+                    log.info("Skipping conversation_conversion (already completed)")
+            else:
+                pipeline.mark_stage("conversation_conversion", "skipped")
+
+            # Save dataset version
+            try:
+                version_files = {"qna_dataset.json": "qna_dataset.json"}
+                if not args.skip_conversation:
+                    version_files["conversation_dataset.json"] = args.conversation_output
+                save_dataset_version(version_files)
+            except (OSError, ValueError) as e:
+                log.warning(f"Dataset versioning failed: {e}")
+
+            # Export if requested
+            if args.export:
+                try:
+                    export_name = f"qna_dataset.{args.export}"
+                    export_dataset("qna_dataset.json", export_name, args.export)
+                    if not args.skip_conversation and os.path.exists(args.conversation_output):
+                        conv_export = f"conversation_dataset.{args.export}"
+                        export_dataset(args.conversation_output, conv_export, args.export)
+                except (OSError, ValueError, ImportError) as e:
+                    log.warning(f"Export failed: {e}")
+
+            pipeline.clear()
             log.info("🎉 Full pipeline completed!")
-            log.info(f"Intermediate URLs saved to: {args.urls_output_dir}")
-            log.info(f"Intermediate data sources saved to: {args.datasources_output_dir}")
-            log.info(f"Final datasource_scheme.json generated in: {args.datasources_output_dir}")
-            # Correctly pass the path to qna_dataset.json for the report
-            print_pipeline_report(args.urls_output_dir, args.datasources_output_dir, os.path.join(args.datasources_output_dir, "qna_dataset.json"))
+            print_pipeline_report(urls_dir, datasources_dir)
     else:
         # Interactive mode
         log.info("Welcome to EMTP Data Acquisition Pipeline!")
         while True:
             choice = get_user_choice()
 
-            if choice == '5':
+            if choice == '7':
                 log.info("Goodbye!")
                 break
-            
+
             log_level_str = get_log_level_input()
             logging_level = getattr(logging, log_level_str.upper(), logging.INFO)
-            logging.getlog().setLevel(logging_level)
+            logging.getLogger().setLevel(logging_level)
             log.setLevel(logging_level)
             verbose_logging = (logging_level == logging.DEBUG)
 
@@ -342,62 +565,154 @@ async def main():
                 input_dir = get_path_input("Input directory with URLs", "dataset/acquisition/temp/urls")
                 output_dir = get_path_input("Output directory for data sources", "dataset/acquisition/temp/datasources")
                 collected_metadata = run_datasource_capture(input_dir, output_dir, verbose=verbose_logging)
-                
+
                 # Save initial metadata before Q&A generation
                 initial_metadata_path = os.path.join(output_dir, "datasource_metadata.json")
                 aggregate_metadata_to_file(collected_metadata, initial_metadata_path)
 
-                # Load config for API parameters
-                config = configparser.ConfigParser()
-                config.read('config.ini')
-                base_url = config['DEFAULT']['base_url']
-                model_name = config['DEFAULT']['model_name']
-                authorization_token = config['DEFAULT'].get('authorization_token', None) # Use .get for optional values
-                await run_semi_sythetic_data_generation(collected_metadata, output_dir, base_url, model_name, authorization_token) # Pass collected metadata
-
             elif choice == '3':
-                # Q&A Generation - In interactive mode, this implies running it after a datasource capture
-                log.info("Running Q&A Generation requires metadata from a datasource capture stage.")
-                log.info("Please run stage 2 (Datasource Capture) first, which will now automatically perform Q&A Generation.")
-                # We can add more sophisticated logic here if a user wants to load existing markdown and generate Q&A
-                # but for now, we direct them to the full pipeline or combined stage 2.
+                # Deep-Dive Generation
+                datasources_dir = get_path_input("Input datasources directory", "dataset/acquisition/temp/datasources")
+                run_deep_dive(
+                    datasources_dir=datasources_dir,
+                    urls_deep_dir="dataset/acquisition/temp/urls_deep",
+                    datasources_deep_dir="dataset/acquisition/temp/datasources_deep",
+                    verbose=verbose_logging,
+                )
+
             elif choice == '4':
-                # Full Pipeline
+                # Q&A Generation
+                datasources_dir = get_path_input("Input datasources directory (round 1)", "dataset/acquisition/temp/datasources")
+                datasources_deep_dir = get_path_input("Input deep-dive datasources directory (leave blank to skip)", "")
+                content_dirs = [datasources_dir]
+                if datasources_deep_dir:
+                    content_dirs.append(datasources_deep_dir)
+                log.info(f"🤖 Starting Q&A generation from {len(content_dirs)} source(s)...")
+                generate_qna_dataset(scraped_content_dirs=content_dirs)
+
+            elif choice == '5':
+                # Conversation Conversion
+                qna_file = get_path_input("Q&A dataset file", "qna_dataset.json")
+                output_file = get_path_input("Output conversation dataset file", "conversation_dataset.json")
+                run_conversation_conversion(qna_dataset_file=qna_file, output_file=output_file)
+
+            elif choice == '6':
                 log.info("Running full pipeline...")
-
-                # Get input path
                 questions_file = get_path_input("Questions file path", "sample.json")
-
-                # Use temp directories for intermediate data
                 urls_temp = "dataset/acquisition/temp/urls"
                 datasources_temp = "dataset/acquisition/temp/datasources"
+                urls_deep_temp = "dataset/acquisition/temp/urls_deep"
+                datasources_deep_temp = "dataset/acquisition/temp/datasources_deep"
 
-                # Run URL retrieval
-                run_url_retrieval(questions_file, urls_temp, verbose=verbose_logging)
+                pipeline = PipelineState()
+                if pipeline.has_previous_run():
+                    completed = pipeline.get_completed_stages()
+                    resume = input(f"Previous run found (completed: {completed}). Resume? (Y/n): ").strip().lower()
+                    if resume != 'n':
+                        log.info(f"Resuming from: {pipeline.get_resume_point()}")
+                    else:
+                        pipeline.start_run()
+                else:
+                    pipeline.start_run()
 
-                # Run datasource capture
-                collected_metadata = run_datasource_capture(urls_temp, datasources_temp, verbose=verbose_logging)
-                log.debug(f"Collected metadata count after datasource capture (interactive full_pipeline): {len(collected_metadata)}")
-                
-                # Save initial metadata before Q&A generation
-                initial_metadata_path = os.path.join(datasources_temp, "datasource_metadata.json")
-                aggregate_metadata_to_file(collected_metadata, initial_metadata_path)
+                # Stage 1: URL Retrieval
+                if not pipeline.is_completed("url_retrieval"):
+                    run_url_retrieval(questions_file, urls_temp, verbose=verbose_logging)
+                    pipeline.mark_stage("url_retrieval", "completed", output_dir=urls_temp)
+                else:
+                    log.info("Skipping url_retrieval (already completed)")
 
-                # Load config for API parameters
-                config = configparser.ConfigParser()
-                config.read('config.ini')
-                base_url = config['DEFAULT']['base_url']
-                model_name = config['DEFAULT']['model_name']
-                authorization_token = config['DEFAULT'].get('authorization_token', None) # Use .get for optional values
+                # Stage 2: Datasource Capture
+                if not pipeline.is_completed("datasource_capture"):
+                    collected_metadata = run_datasource_capture(urls_temp, datasources_temp, verbose=verbose_logging)
+                    pipeline.mark_stage("datasource_capture", "completed", output_dir=datasources_temp)
+                else:
+                    log.info("Skipping datasource_capture (already completed)")
 
-                # Run Q&A generation directly on collected metadata and markdown files
-                await run_semi_sythetic_data_generation(collected_metadata, datasources_temp, base_url, model_name, authorization_token)
+                # Stage 3: Deep-Dive (optional)
+                content_dirs = [datasources_temp]
+                skip_deep = input("Skip deep-dive stage? (y/N): ").strip().lower() == 'y'
+                if not skip_deep:
+                    if not pipeline.is_completed("deep_dive"):
+                        deep_result = run_deep_dive(
+                            datasources_dir=datasources_temp,
+                            urls_deep_dir=urls_deep_temp,
+                            datasources_deep_dir=datasources_deep_temp,
+                            verbose=verbose_logging,
+                        )
+                        if deep_result:
+                            content_dirs.append(datasources_deep_temp)
+                        pipeline.mark_stage("deep_dive", "completed", output_dir=datasources_deep_temp)
+                    else:
+                        log.info("Skipping deep_dive (already completed)")
+                        if os.path.exists(datasources_deep_temp):
+                            content_dirs.append(datasources_deep_temp)
+                else:
+                    pipeline.mark_stage("deep_dive", "skipped")
 
+                # Stage 4: Q&A Generation
+                if not pipeline.is_completed("qa_generation"):
+                    log.info(f"🤖 Starting Q&A generation from {len(content_dirs)} source(s)...")
+                    generate_qna_dataset(scraped_content_dirs=content_dirs)
+                    try:
+                        validate_qna_dataset("qna_dataset.json")
+                        log.info("Q&A dataset validation passed")
+                    except ValidationError as e:
+                        log.error(f"Q&A dataset validation failed: {e}")
+
+                    # Deduplication
+                    try:
+                        import json
+                        with open("qna_dataset.json", "r") as f:
+                            qna_data = json.load(f)
+                        qna_data, removed = deduplicate_qna(qna_data)
+                        if removed > 0:
+                            from util.file_utils import atomic_write_json
+                            atomic_write_json("qna_dataset.json", qna_data)
+                            log.info(f"Removed {removed} duplicate Q&A pairs")
+                    except Exception as e:
+                        log.warning(f"Deduplication failed: {e}")
+
+                    pipeline.mark_stage("qa_generation", "completed")
+                else:
+                    log.info("Skipping qa_generation (already completed)")
+
+                # Stage 5: Conversation Conversion (optional)
+                skip_conv = input("Skip conversation conversion? (y/N): ").strip().lower() == 'y'
+                if not skip_conv:
+                    if not pipeline.is_completed("conversation_conversion"):
+                        run_conversation_conversion()
+                        try:
+                            validate_conversation_dataset("conversation_dataset.json")
+                            log.info("Conversation dataset validation passed")
+                        except ValidationError as e:
+                            log.error(f"Conversation dataset validation failed: {e}")
+                        pipeline.mark_stage("conversation_conversion", "completed")
+                    else:
+                        log.info("Skipping conversation_conversion (already completed)")
+                else:
+                    pipeline.mark_stage("conversation_conversion", "skipped")
+
+                # Save dataset version
+                try:
+                    version_files = {"qna_dataset.json": "qna_dataset.json"}
+                    if not skip_conv:
+                        version_files["conversation_dataset.json"] = "conversation_dataset.json"
+                    save_dataset_version(version_files)
+                except Exception as e:
+                    log.warning(f"Dataset versioning failed: {e}")
+
+                export_fmt = input("Export dataset? (csv/parquet/N): ").strip().lower()
+                if export_fmt in ("csv", "parquet"):
+                    try:
+                        export_dataset("qna_dataset.json", f"qna_dataset.{export_fmt}", export_fmt)
+                        log.info(f"Exported to qna_dataset.{export_fmt}")
+                    except Exception as e:
+                        log.warning(f"Export failed: {e}")
+
+                pipeline.clear()
                 log.info("🎉 Full pipeline completed!")
-                log.info(f"Intermediate URLs saved to: {urls_temp}")
-                log.info(f"Intermediate data sources saved to: {datasources_temp}")
-                log.info(f"Final datasource_scheme.json generated in: {datasources_temp}")
-                print_pipeline_report(urls_temp, datasources_temp, os.path.join(datasources_temp, "qna_dataset.json"))
+                print_pipeline_report(urls_temp, datasources_temp)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

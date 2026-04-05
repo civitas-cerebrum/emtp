@@ -1,0 +1,16 @@
+[
+    {
+        "category": "Test Automation",
+        "questions": [
+            "What are the best practices for test automation frameworks?",
+            "How does Selenium compare to Playwright for web testing?"
+        ]
+    },
+    {
+        "category": "Quality Metrics",
+        "questions": [
+            "What are the most important software quality metrics?",
+            "How do you measure test coverage effectively?"
+        ]
+    }
+]

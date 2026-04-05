@@ -1,39 +1,94 @@
 # EMTP - Expert Model Training Pipeline
 
-EMTP is a comprehensive pipeline for acquiring, processing, and preparing data for training expert AI models. The pipeline focuses on quality assurance (QA) related content, systematically collecting questions, retrieving relevant URLs using DuckDuckGo search with optional dorks support, and scraping web content directly into markdown format using Firecrawl API (supports both local and external instances).
+EMTP is a pipeline for acquiring, processing, and preparing domain-specific data to fine-tune expert AI models. It systematically generates questions, searches the web, scrapes content, generates Q&A pairs, and converts them into multi-turn conversations for training.
+
+## Pipeline Overview
+
+```
+Input Questions
+     |
+1. URL Retrieval ------> Search DuckDuckGo (with optional dorks)
+     |
+2. Datasource Capture -> Scrape URLs to markdown via Firecrawl
+     |
+3. Deep-Dive (optional)  Analyze content, generate follow-up questions,
+     |                    search & scrape round 2
+     |
+4. Q&A Generation -----> LLM generates Q&A pairs from all markdown
+     |                    (includes deduplication + validation)
+     |
+5. Conversation --------> LLM converts Q&A into multi-turn dialogues
+     |
+   Output: conversation_dataset.json
+```
 
 ## Key Features
 
-- **Interactive Pipeline**: Choose individual stages or run the full pipeline with custom paths
-- **DuckDuckGo Search with Dorks**: Uses DuckDuckGo for URL retrieval with optional search operators (privacy-focused, no Google)
-- **Firecrawl Integration**: Firecrawl API for direct web content scraping into markdown format (supports local and external instances)
-- **Simplified Pipeline**: Direct markdown output eliminates need for OCR processing in the main pipeline
-- **Unicode Handling**: Automatically processes and normalizes Unicode characters in questions
-- **Temp Directory Management**: Uses organized temp directories for intermediate data storage
-- **Modular Architecture**: Clean separation of acquisition, enrichment, and training stages
+- **5-stage pipeline** with interactive menu and full CLI support
+- **Deep-dive generation** — second round of search/scrape for deeper content
+- **Multi-turn conversations** — transforms flat Q&A into natural dialogues for training
+- **LLM provider abstraction** — pluggable providers (Ollama built-in), retry with exponential backoff, connection pooling
+- **Pipeline resumability** — tracks completed stages, resume with `--resume` flag
+- **Data quality** — Q&A deduplication (exact + near-duplicate), schema validation, minimum/maximum content length filters
+- **Dataset versioning** — timestamped snapshots in `datasets/`
+- **Export formats** — JSON, CSV, Parquet (`--export csv|parquet`)
+- **Data provenance** — each Q&A pair tracks `source_file`, `category`, and `source` (round1/round2)
+- **Atomic file writes** — crash-safe JSON output
+- **Progress tracking** — `[34/127]` counters in all processing loops
+- **Config validation** — required keys checked at startup, optional keys warn with defaults
+- **159 tests** passing
 
 ## Project Structure
 
 ```
 emtp/
-├── main.py                 # Main interactive pipeline orchestrator
-├── requirements.txt        # Lists all Python package dependencies for the project
-├── qna_dataset.json        # Generated Q&A dataset from processed text data
-├── .gitignore              # Specifies intentionally untracked files and directories to ignore by Git
-├── dataset/                # Top-level directory for all data, organized into acquisition, enrichment, and questions
-│   ├── README.md           # Provides an overview of the dataset directory's purpose and contents
-│   ├── acquisition/        # Contains all modules and scripts responsible for data acquisition stages
-│   │   ├── __init__.py     # Marks `acquisition` as a Python package and handles module connections
-│   │   ├── README.md       # Detailed documentation for the data acquisition process
-│   │   ├── temp/           # Temporary storage for intermediate data generated during acquisition
-│   │   │   ├── urls/       # Stores JSON files containing URLs retrieved from search engines
-│   │   │   ├── datasources/ # Stores captured web page screenshots and downloaded PDFs
-│   │   │   └── text_data/    # Stores extracted text data from screenshots and PDFs
-│   │   ├── retrieve_url/   # Python module dedicated to retrieving URLs based on QA questions
-│   │   └── save_datasource/ # Python module dedicated to web scraping using Firecrawl API
-│   ├── enrichment/         # Contains data enrichment and Q&A generation modules
-│   └── questions/          # Stores question datasets and related files
-└── training/               # Placeholder for future model training components and scripts
+├── main.py                          # Pipeline orchestrator (interactive + CLI)
+├── config.ini                       # Configuration (API endpoints, prompts, model settings)
+├── requirements.txt                 # Python dependencies
+│
+├── dataset/
+│   ├── acquisition/
+│   │   ├── retrieve_url/            # DuckDuckGo URL search
+│   │   │   ├── main.py              # Search orchestration
+│   │   │   ├── search_engine.py     # DDGS search with dorks support
+│   │   │   └── data_loader.py       # Question JSON normalization (2 formats)
+│   │   ├── save_datasource/         # Firecrawl web scraping
+│   │   │   ├── main.py              # Batch scrape with retry logic
+│   │   │   ├── file_finder.py       # JSON file discovery
+│   │   │   └── json_parser.py       # URL extraction from JSON
+│   │   └── temp/                    # Intermediate data
+│   │       ├── urls/                # Search result URLs (per-category JSON)
+│   │       ├── datasources/         # Scraped markdown (round 1)
+│   │       ├── datasources_deep/    # Scraped markdown (round 2, deep-dive)
+│   │       └── urls_deep/           # Deep-dive search URLs
+│   │
+│   ├── enrichment/
+│   │   ├── deep_dive_generation.py  # Generate follow-up questions from content
+│   │   ├── dataset_generation.py    # Q&A pair generation from markdown
+│   │   └── conversation_conversion.py # Convert Q&A to multi-turn dialogues
+│   │
+│   └── questions/
+│       ├── question_generation.py   # AI-powered topic-to-questions
+│       └── question_categorisation.py # Question categorization
+│
+├── training/
+│   └── train.py                     # SFT training with LoRA (HuggingFace/TRL)
+│
+├── util/
+│   ├── utilities.py                 # Config, logging, config validation
+│   ├── llm_client.py                # LLMClient factory
+│   ├── llm_providers/
+│   │   ├── base.py                  # LLMProvider Protocol + LLMError
+│   │   └── ollama.py                # Ollama provider (retry, session pooling)
+│   ├── file_utils.py                # Atomic JSON writes
+│   ├── pipeline_state.py            # Pipeline resumability tracking
+│   ├── schema_validation.py         # Dataset schema validation
+│   ├── deduplication.py             # Q&A near-duplicate removal
+│   ├── dataset_versioning.py        # Timestamped dataset snapshots
+│   └── export.py                    # CSV/Parquet export
+│
+├── tests/                           # 159 tests (pytest)
+└── datasets/                        # Versioned dataset snapshots
 ```
 
 ## Quick Start
@@ -43,95 +98,169 @@ emtp/
    pip install -r requirements.txt
    ```
 
-2. **Run the interactive pipeline:**
+2. **Configure** `config.ini` with your API endpoints, model name, and authorization token.
+
+3. **Run the interactive pipeline:**
    ```bash
    python main.py
    ```
 
-   This launches an interactive menu where you can:
-   - Choose individual stages with custom input/output paths
-   - Run the full pipeline (asks only for questions file and final screenshot output)
-   - Exit the session
+4. **Or run the full pipeline via CLI:**
+   ```bash
+   python main.py --stage full_pipeline \
+     --questions-file questions.json \
+     --verbose
+   ```
 
-## Non-Interactive Execution
-
-You can also run the pipeline directly using command-line arguments, which is useful for automation or scripting. Use the `--stage` argument to specify which part of the pipeline to run.
-
-```bash
-python main.py --stage full_pipeline --questions-file dataset/acquisition/retrieve_url/sample.json --verbose --dorks "filetype:pdf"
-```
-
-## Pipeline Stages
-
-### 1. URL Retrieval (`dataset/acquisition/retrieve_url/`)
-- Reads questions from `dataset/acquisition/retrieve_url/sample.json` (or specified via `--questions-file`)
-- Searches DuckDuckGo for relevant URLs
-- Saves categorized results to `dataset/acquisition/temp/urls/`
-
-### 2. Datasource Capture (`dataset/acquisition/save_datasource/`)
-- Reads URLs from `dataset/acquisition/temp/urls/`
-- Uses Firecrawl API to scrape web content directly into markdown format (supports local and external instances)
-- Saves markdown files to `dataset/acquisition/temp/datasources/`
-
-### 3. Q&A Generation (`dataset/enrichment/qa_generation.py`)
-- Processes markdown files from `dataset/acquisition/temp/datasources/`
-- Generates Q&A pairs for model training
-- Note: Datasource processing (OCR/PDF text extraction) is skipped in the full pipeline since Firecrawl provides clean markdown output
-
-## Data Flow
-
-```mermaid
-graph TD
-    A[qa_questions.json] --> B(URL Retrieval);
-    B --> C{dataset/acquisition/temp/urls/};
-    C --> D(Firecrawl Web Scraping);
-    D --> E{dataset/acquisition/temp/datasources/};
-    E --> F(Q&A Generation);
-
-    F --> G{qna.json};
-```
-
-## Requirements
-
-- Python 3.8+
-- Internet connection for web scraping and searches
-- Firecrawl instance running (local or external, configurable via config.ini)
-
-## Individual Stage Execution
-
-You can run individual stages through the interactive menu in `main.py`, or directly from their respective directories, or via the non-interactive `main.py` entry point:
+## CLI Usage
 
 ```bash
-# Non-interactive URL retrieval only
-python main.py --stage url_retrieval --questions-file dataset/acquisition/retrieve_url/sample.json --urls-output-dir custom/output --dorks "filetype:pdf site:stackoverflow.com"
+# Full pipeline
+python main.py --stage full_pipeline --questions-file questions.json
 
-# Non-interactive Datasource capture only
-python main.py --stage datasource_capture --urls-output-dir custom/input --datasources-output-dir custom/output
+# Full pipeline, skip deep-dive for speed
+python main.py --stage full_pipeline --questions-file questions.json --skip-deep-dive
 
-# Non-interactive Q&A generation only
-python main.py --stage qa_generation --datasources-output-dir custom/input
+# Full pipeline, skip conversation conversion (flat Q&A output only)
+python main.py --stage full_pipeline --questions-file questions.json --skip-conversation
+
+# Resume a previously interrupted run
+python main.py --stage full_pipeline --questions-file questions.json --resume
+
+# Export to CSV after completion
+python main.py --stage full_pipeline --questions-file questions.json --export csv
+
+# Individual stages
+python main.py --stage url_retrieval --questions-file questions.json
+python main.py --stage datasource_capture
+python main.py --stage deep_dive
+python main.py --stage qa_generation
+python main.py --stage conversation_conversion
+
+# With search operators
+python main.py --stage full_pipeline --questions-file questions.json --dorks "filetype:pdf site:stackoverflow.com"
+```
+
+## Input Format
+
+Questions JSON (two formats supported):
+
+```json
+[
+  {
+    "category": "Test Automation",
+    "questions": [
+      "What are best practices for test automation frameworks?",
+      "How does Selenium compare to Playwright?"
+    ]
+  }
+]
+```
+
+Or legacy format:
+```json
+{
+  "Test Automation": ["What are best practices for test automation frameworks?"]
+}
+```
+
+## Output Formats
+
+**Q&A Dataset** (`qna_dataset.json`):
+```json
+[
+  {
+    "q": "What is shift-left testing?",
+    "a": "Shift-left testing is a practice where testing activities are performed earlier...",
+    "category": "Testing",
+    "source": "round1",
+    "source_file": "testing/www_example_com_article.md"
+  }
+]
+```
+
+**Conversation Dataset** (`conversation_dataset.json`):
+```json
+[
+  {
+    "messages": [
+      {"role": "user", "content": "Can you explain shift-left testing?"},
+      {"role": "assistant", "content": "Shift-left testing is a practice where..."},
+      {"role": "user", "content": "How does that differ from traditional QA?"},
+      {"role": "assistant", "content": "In traditional workflows..."}
+    ]
+  }
+]
 ```
 
 ## Configuration
 
-- Modify `dataset/acquisition/retrieve_url/sample.json` or create a new JSON file to change the source questions.
-- Configure Firecrawl settings in `config.ini`:
-  - `firecrawl_url`: URL of the Firecrawl instance (default: http://localhost:3002)
-  - `firecrawl_user`: Username for external Firecrawl instances (leave empty for local)
-  - `firecrawl_pass`: Password for external Firecrawl instances (leave empty for local)
-- Use `--force-local` flag with datasource capture to override config and use localhost:3002
+Key settings in `config.ini`:
 
-## Dependencies
+| Key | Description | Default |
+|-----|-------------|---------|
+| `model_name` | Ollama model for LLM calls | `gemma3:27b` |
+| `model_expertise` | Domain expertise for prompts | `Quality Assurance` |
+| `owui_base_url` | Base URL for Ollama API | Required |
+| `ollama_uri` | Ollama generate endpoint path | Required |
+| `authorization_token` | Bearer token for API auth | Optional |
+| `firecrawl_url` | Firecrawl instance URL | `http://localhost:3002` |
+| `search_result_count` | URLs per question | `10` |
+| `request_timeout` | LLM request timeout (seconds) | `60` |
+| `min_content_length` | Skip markdown files below this (chars) | `200` |
+| `max_content_length` | Truncate documents above this (chars, 0=off) | `0` |
+| `conversation_batch_size` | Q&A pairs per conversation batch | `8` |
 
-- `ddgs`: DuckDuckGo search API
-- `requests`: HTTP requests for Firecrawl API communication
-- `json_parser`: Custom module for extracting URLs from JSON
-- `file_finder`: Custom module for finding JSON files
+## Training
 
-## Notes
+The training script fine-tunes models using SFT (Supervised Fine-Tuning) with LoRA:
 
-- All paths are resolved relative to project root
-- Unicode characters in questions are automatically normalized
-- Temporary directories are created automatically
-- Web content is scraped directly into markdown format using Firecrawl (configurable for local or external instances)
-- The full pipeline skips OCR processing since Firecrawl provides clean markdown output
+```bash
+python training/train.py
+```
+
+Supports both conversation format (multi-turn) and legacy Q&A format. Uses HuggingFace Transformers + TRL + PEFT with BitsAndBytes quantization.
+
+## Testing
+
+```bash
+# Run all 159 tests
+python -m pytest tests/ -v
+
+# Run specific test file
+python -m pytest tests/test_llm_client.py -v
+```
+
+## Architecture
+
+### LLM Provider Abstraction
+
+All LLM calls go through a shared `LLMClient` with pluggable providers:
+
+```
+LLMClient (factory: create_llm_client())
+  └── OllamaProvider
+        ├── requests.Session (connection pooling)
+        ├── Retry with exponential backoff (3 retries on 429/5xx/connection errors)
+        └── Response parsing (handles string/dict/list responses)
+```
+
+To add a new provider, implement the `LLMProvider` protocol in `util/llm_providers/` and add it to the factory.
+
+### Pipeline State
+
+The `--resume` flag uses `.pipeline_state.json` to track completed stages. If a run is interrupted, resuming skips already-completed stages.
+
+### Data Quality
+
+- **Deduplication**: Normalizes question text (lowercase, strip punctuation) and hashes to detect near-duplicates
+- **Schema validation**: Validates Q&A and conversation datasets at stage boundaries
+- **Content filtering**: Skips files below `min_content_length`, truncates above `max_content_length`
+
+## Requirements
+
+- Python 3.10+
+- Internet connection for web searches and scraping
+- Ollama-compatible LLM API endpoint
+- Firecrawl instance (local or external)
+- For training: CUDA-capable GPU with PyTorch
